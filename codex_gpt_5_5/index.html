@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Qlib Quant Workshop</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Hands-on quant research</p>
+        <h1>Microsoft Qlib Workshop</h1>
+      </div>
+      <nav aria-label="Workshop sections">
+        <a href="#setup">Setup</a>
+        <a href="#basics">Basics</a>
+        <a href="#layout">Layout</a>
+        <a href="#labs">Labs</a>
+        <a href="#commands">Commands</a>
+        <a href="#map">Qlib Map</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <h2>Learn the quant workflow by running Qlib locally.</h2>
+          <p>
+            This workshop takes you from market data access to factor features,
+            model training, signal evaluation, and portfolio backtesting using
+            the Microsoft Qlib source. It assumes
+            you are new to quant, so every lab explains the main terms before
+            asking you to run commands.
+          </p>
+        </div>
+        <div class="status-grid" aria-label="Workshop overview">
+          <div><strong>4</strong><span>hands-on labs</span></div>
+          <div><strong>2-4h</strong><span>suggested duration</span></div>
+          <div><strong>Python</strong><span>main interface</span></div>
+          <div><strong>HTTP</strong><span>served locally</span></div>
+        </div>
+      </section>
+
+      <section id="setup" class="band">
+        <div class="section-head">
+          <p class="eyebrow">Before class</p>
+          <h2>Local Setup</h2>
+          <p>Use a virtual environment. The downloaded Qlib README lists Python 3.8 through 3.12 support, and this machine has Python 3.11.</p>
+        </div>
+        <div class="steps">
+          <article>
+            <span class="step">1</span>
+            <h3>Create the environment</h3>
+            <pre><code>git clone https://github.com/microsoft/qlib.git
+cd qlib
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip</code></pre>
+          </article>
+          <article>
+            <span class="step">2</span>
+            <h3>Install Qlib</h3>
+            <pre><code>pip install numpy
+pip install --upgrade cython
+pip install -e .</code></pre>
+          </article>
+          <article>
+            <span class="step">3</span>
+            <h3>Prepare public data</h3>
+            <pre><code>wget https://github.com/chenditc/investment_data/releases/latest/download/qlib_bin.tar.gz
+mkdir -p ~/.qlib/qlib_data/cn_data
+tar -zxvf qlib_bin.tar.gz -C ~/.qlib/qlib_data/cn_data --strip-components=1</code></pre>
+          </article>
+        </div>
+      </section>
+
+      <section id="basics">
+        <div class="section-head">
+          <p class="eyebrow">Start here</p>
+          <h2>Beginner Quant Primer</h2>
+          <p>
+            Quant investing is not just "predict the stock price." It is a
+            disciplined process for making decisions under uncertainty: define
+            what can be traded, compute signals from data available at the time,
+            convert those signals into a portfolio, and test whether the result
+            survives costs, risk, and honest out-of-sample evaluation.
+          </p>
+        </div>
+        <div class="primer-grid">
+          <article>
+            <h3>1. The real object is a portfolio decision</h3>
+            <p>
+              A quant model usually predicts a score, not a guaranteed price.
+              The trading system must still decide which assets to hold, how
+              much capital to allocate, when to rebalance, and what to compare
+              against. In Qlib, <code>strategy</code> and <code>backtest</code>
+              are as important as <code>model</code>.
+            </p>
+            <dl>
+              <dt>Instrument</dt>
+              <dd>A tradable asset, such as one stock. Example: <code>SH600000</code>.</dd>
+              <dt>Universe</dt>
+              <dd>The allowed trading list. Example: <code>csi300</code>.</dd>
+              <dt>Benchmark</dt>
+              <dd>The reference you try to beat, such as an index.</dd>
+            </dl>
+          </article>
+          <article>
+            <h3>2. Prices become returns and risk</h3>
+            <p>
+              Raw prices are hard to compare across assets. Quant research often
+              studies returns: how much an asset changed over a period. Risk is
+              not just "losing money"; it includes volatility, concentration,
+              drawdown, and exposure to a market index or sector.
+            </p>
+            <dl>
+              <dt>Return</dt>
+              <dd>Percentage change in value, often measured daily or over a future horizon.</dd>
+              <dt>Volatility</dt>
+              <dd>How unstable returns are. Higher volatility means a bumpier ride.</dd>
+              <dt>Drawdown</dt>
+              <dd>The fall from a portfolio peak to a later low.</dd>
+            </dl>
+          </article>
+          <article>
+            <h3>3. Features are questions you ask the data</h3>
+            <p>
+              A factor is a numeric question about the market: has price been
+              rising, is volume unusual, is the stock cheap relative to peers?
+              Qlib calls these feature expressions. A label is the future value
+              you want to predict, usually a future return.
+            </p>
+            <dl>
+              <dt>OHLCV</dt>
+              <dd>Open, high, low, close, and volume.</dd>
+              <dt>Feature or factor</dt>
+              <dd>An input signal such as five-day return or moving average.</dd>
+              <dt>Label</dt>
+              <dd>The target, such as next-period return.</dd>
+            </dl>
+          </article>
+          <article>
+            <h3>4. Alpha means useful signal, not magic</h3>
+            <p>
+              Alpha is excess value beyond a benchmark after realistic costs and
+              constraints. A signal can look good before costs and fail after
+              turnover, slippage, or crowded trades. Treat alpha as a hypothesis
+              that must be stress-tested.
+            </p>
+            <dl>
+              <dt>Signal</dt>
+              <dd>A model score or factor value used to rank assets.</dd>
+              <dt>Turnover</dt>
+              <dd>How much the portfolio changes each rebalance.</dd>
+              <dt>Transaction cost</dt>
+              <dd>Fees, taxes, bid-ask spread, and slippage from trading.</dd>
+            </dl>
+          </article>
+          <article>
+            <h3>5. Time order is sacred</h3>
+            <p>
+              Finance data is time ordered. You cannot train on the future and
+              pretend you discovered a real signal. Split data chronologically:
+              train on earlier dates, validate on later dates, and test on the
+              final unseen period.
+            </p>
+            <dl>
+              <dt>Look-ahead bias</dt>
+              <dd>Using information that would not have been known at trade time.</dd>
+              <dt>Data leakage</dt>
+              <dd>Any path where test-period information sneaks into training or feature design.</dd>
+              <dt>Out-of-sample</dt>
+              <dd>Performance measured on data not used to fit or tune the strategy.</dd>
+            </dl>
+          </article>
+          <article>
+            <h3>6. Backtests are simulations, not evidence by themselves</h3>
+            <p>
+              A backtest answers "what would this rule have done on this
+              historical data?" It can be distorted by unrealistic execution,
+              missing delisted assets, repeated tuning, or choosing the best
+              result from many failed experiments.
+            </p>
+            <dl>
+              <dt>Overfitting</dt>
+              <dd>Fitting noise in the past instead of learning a pattern likely to repeat.</dd>
+              <dt>Slippage</dt>
+              <dd>The difference between expected and actual execution price.</dd>
+              <dt>Walk-forward test</dt>
+              <dd>Repeatedly train on a past window, test on the next future window, then roll forward.</dd>
+            </dl>
+          </article>
+        </div>
+        <div class="concept-flow">
+          <h3>Read any Qlib workflow like this</h3>
+          <ol>
+            <li><strong>Data:</strong> Which market, dates, instruments, and fields are allowed?</li>
+            <li><strong>Features:</strong> What information is computed before the prediction time?</li>
+            <li><strong>Label:</strong> What future outcome is the model trying to predict?</li>
+            <li><strong>Model:</strong> How are features converted into ranking scores?</li>
+            <li><strong>Strategy:</strong> How do scores become holdings and trades?</li>
+            <li><strong>Backtest:</strong> Are costs, constraints, turnover, and benchmark comparison included?</li>
+            <li><strong>Review:</strong> Would the result still be credible on a different period or universe?</li>
+          </ol>
+        </div>
+        <div class="beginner-warnings">
+          <article>
+            <h3>Beginner trap: predicting price level</h3>
+            <p>Most equity models predict returns or rankings, because raw price levels are not comparable across stocks.</p>
+          </article>
+          <article>
+            <h3>Beginner trap: trusting one great chart</h3>
+            <p>A smooth backtest can come from overfitting. Ask how many variants were tried before this one was selected.</p>
+          </article>
+          <article>
+            <h3>Beginner trap: ignoring costs</h3>
+            <p>Small predictive edges can disappear if the strategy trades frequently or assumes impossible execution.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="layout" class="band">
+        <div class="section-head">
+          <p class="eyebrow">Library map</p>
+          <h2>Qlib Layout</h2>
+          <p>
+            This diagram shows how the downloaded repository is organized and
+            how the main runtime packages connect in a typical research flow.
+          </p>
+        </div>
+        <pre class="mermaid">
+flowchart TB
+  Repo["qlib-main repository"]
+  Repo --> Docs["docs<br/>User and API documentation"]
+  Repo --> Examples["examples<br/>Runnable workflows and benchmark configs"]
+  Repo --> Scripts["scripts<br/>Data collection and utility scripts"]
+  Repo --> Tests["tests<br/>Project-level tests"]
+  Repo --> Package["qlib Python package"]
+
+  Package --> Data["qlib.data<br/>Calendar, instruments, features, datasets"]
+  Package --> Model["qlib.model<br/>Model interfaces, ensembles, risk models"]
+  Package --> Workflow["qlib.workflow<br/>Experiments, recorders, task management"]
+  Package --> Strategy["qlib.strategy<br/>Trading decision rules"]
+  Package --> Backtest["qlib.backtest<br/>Simulation, executor, exchange"]
+  Package --> Contrib["qlib.contrib<br/>Built-in models, handlers, strategies, reports"]
+  Package --> RL["qlib.rl<br/>Reinforcement learning order execution"]
+  Package --> CLI["qlib.cli<br/>Command-line entry points such as qrun"]
+  Package --> Utils["qlib.utils<br/>Config loading and shared helpers"]
+
+  Examples --> QRun["qrun YAML configs"]
+  QRun --> CLI
+  CLI --> Workflow
+  Workflow --> Data
+  Workflow --> Model
+  Workflow --> Strategy
+  Strategy --> Backtest
+  Backtest --> Reports["Portfolio metrics and analysis records"]
+  Contrib --> Model
+  Contrib --> Strategy
+  Contrib --> Reports
+        </pre>
+        <div class="layout-notes">
+          <article>
+            <h3>Where beginners start</h3>
+            <p>Open <code>examples/workflow_by_code.py</code> and the LightGBM YAML config. They show the same workflow in Python and config form.</p>
+          </article>
+          <article>
+            <h3>Core path</h3>
+            <p><code>data</code> builds inputs, <code>model</code> predicts signals, <code>strategy</code> turns signals into trades, and <code>backtest</code> simulates results.</p>
+          </article>
+          <article>
+            <h3>Why contrib matters</h3>
+            <p><code>qlib.contrib</code> contains practical built-ins, including common models, feature handlers, strategies, and report helpers.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="labs">
+        <div class="section-head">
+          <p class="eyebrow">Workshop path</p>
+          <h2>Hands-on Labs</h2>
+          <p>Each lab has a concrete output, beginner definitions, and a short quant concept to debrief.</p>
+        </div>
+        <div class="tabs" role="tablist" aria-label="Labs">
+          <button class="tab active" data-lab="lab1" role="tab" aria-selected="true">1 Data</button>
+          <button class="tab" data-lab="lab2" role="tab" aria-selected="false">2 Factors</button>
+          <button class="tab" data-lab="lab3" role="tab" aria-selected="false">3 Model</button>
+          <button class="tab" data-lab="lab4" role="tab" aria-selected="false">4 Backtest</button>
+        </div>
+
+        <article class="lab active" id="lab1">
+          <h3>Lab 1: Initialize Qlib and inspect market data</h3>
+          <p><strong>Goal:</strong> load a trading calendar, an index universe, and raw OHLCV fields.</p>
+          <div class="callout">
+            <strong>Terms in this lab:</strong>
+            <span><code>provider_uri</code> is the folder where Qlib data lives.</span>
+            <span><code>calendar</code> is the list of trading days.</span>
+            <span><code>instruments</code> are the stocks you can trade.</span>
+          </div>
+          <pre><code>python - &lt;&lt;'PY'
+import qlib
+from qlib.constant import REG_CN
+from qlib.data import D
+
+qlib.init(provider_uri="~/.qlib/qlib_data/cn_data", region=REG_CN)
+print(D.calendar(start_time="2017-01-01", end_time="2017-01-10", freq="day")[:5])
+inst = D.instruments(market="csi300")
+print(D.list_instruments(inst, start_time="2017-01-01", end_time="2017-01-10", as_list=True)[:10])
+print(D.features(["SH600000"], ["$open", "$close", "$volume"], start_time="2017-01-01", end_time="2017-01-10").head())
+PY</code></pre>
+          <p class="debrief">Debrief: before modeling, you must know exactly which assets, dates, and fields your research is allowed to use.</p>
+        </article>
+
+        <article class="lab" id="lab2">
+          <h3>Lab 2: Build feature expressions</h3>
+          <p><strong>Goal:</strong> create small alpha-style features and inspect their values before modeling.</p>
+          <div class="callout">
+            <strong>Terms in this lab:</strong>
+            <span><code>Ref($close, 1)</code> means yesterday's close.</span>
+            <span><code>Mean($close, 5)</code> means five-day average close.</span>
+            <span>A factor is useful only if it is known before the prediction target happens.</span>
+          </div>
+          <pre><code>python - &lt;&lt;'PY'
+import qlib
+from qlib.constant import REG_CN
+from qlib.data import D
+
+qlib.init(provider_uri="~/.qlib/qlib_data/cn_data", region=REG_CN)
+fields = [
+    "$close",
+    "Ref($close, 1)",
+    "Mean($close, 5)",
+    "($close - Ref($close, 5)) / Ref($close, 5)",
+    "$high - $low",
+]
+df = D.features(["SH600000"], fields, start_time="2017-01-01", end_time="2017-02-01")
+print(df.tail(10))
+PY</code></pre>
+          <p class="debrief">Debrief: factors are testable hypotheses. Look for data leakage, alignment, missing values, and economic meaning before training.</p>
+        </article>
+
+        <article class="lab" id="lab3">
+          <h3>Lab 3: Run a LightGBM research workflow</h3>
+          <p><strong>Goal:</strong> use Qlib's configuration interface to train a model and generate prediction records.</p>
+          <div class="callout">
+            <strong>Terms in this lab:</strong>
+            <span><code>LightGBM</code> is a tree-based machine learning model.</span>
+            <span><code>Alpha158</code> is a predefined Qlib feature set.</span>
+            <span><code>qrun</code> executes a full workflow from a YAML config.</span>
+          </div>
+          <pre><code>cd qlib
+qrun examples/benchmarks/LightGBM/workflow_config_lightgbm_Alpha158.yaml</code></pre>
+          <p class="debrief">Debrief: Qlib separates research into repeatable parts: dataset, model, recorder, signal analysis, and portfolio analysis.</p>
+        </article>
+
+        <article class="lab" id="lab4">
+          <h3>Lab 4: Read the backtest outputs</h3>
+          <p><strong>Goal:</strong> connect predictions to a TopK-Dropout strategy and interpret the portfolio report.</p>
+          <div class="callout">
+            <strong>Terms in this lab:</strong>
+            <span><code>TopK</code> means buying the highest-ranked predictions.</span>
+            <span><code>Dropout</code> means replacing only part of the portfolio each period.</span>
+            <span>A backtest report should be judged after trading costs, drawdowns, and benchmark comparison.</span>
+          </div>
+          <pre><code>cd qlib
+find mlruns -maxdepth 4 -type f | sort | tail -50
+python examples/workflow_by_code.py</code></pre>
+          <p class="debrief">Debrief: model metrics are not enough. Inspect turnover, transaction costs, drawdown, benchmark-relative return, and date-range robustness.</p>
+        </article>
+      </section>
+
+      <section id="commands" class="band">
+        <div class="section-head">
+          <p class="eyebrow">Reference</p>
+          <h2>Command Cheat Sheet</h2>
+        </div>
+        <div class="command-list">
+          <button data-copy="cd qlib">Open Qlib directory</button>
+          <button data-copy="python -c 'import qlib; print(qlib.__version__)'">Check install</button>
+          <button data-copy="qrun examples/benchmarks/LightGBM/workflow_config_lightgbm_Alpha158.yaml">Run LightGBM workflow</button>
+          <button data-copy="python examples/workflow_by_code.py">Run workflow by code</button>
+        </div>
+      </section>
+
+      <section id="references">
+        <div class="section-head">
+          <p class="eyebrow">Further reading</p>
+          <h2>Beginner References</h2>
+          <p>Use these after the labs when you want more context behind the concepts.</p>
+        </div>
+        <div class="reference-grid">
+          <a href="https://www.finra.org/investors/learn-to-invest/key-investing-concepts">
+            <strong>FINRA Investing Basics</strong>
+            <span>Plain-language background on securities, risk, diversification, and investor protections.</span>
+          </a>
+          <a href="https://www.sec.gov/investor/pubs/assetallocation.htm">
+            <strong>SEC Asset Allocation and Diversification</strong>
+            <span>Useful framing for risk, return, diversification, and rebalancing.</span>
+          </a>
+          <a href="https://www.cfainstitute.org/insights/professional-learning/refresher-readings/2025/using-multifactor-models">
+            <strong>CFA Institute Multifactor Models</strong>
+            <span>Professional context for factors, benchmarks, active return, and risk attribution.</span>
+          </a>
+          <a href="https://arxiv.org/abs/2009.11189">
+            <strong>Qlib Paper</strong>
+            <span>The original Qlib paper explaining the platform and AI-oriented quant workflow.</span>
+          </a>
+          <a href="https://qlib.readthedocs.io/en/stable/introduction/introduction.html">
+            <strong>Qlib Documentation</strong>
+            <span>Official docs for Qlib concepts, components, and workflows.</span>
+          </a>
+        </div>
+      </section>
+
+      <section id="map">
+        <div class="section-head">
+          <p class="eyebrow">Code tour</p>
+          <h2>Where to Look in Qlib</h2>
+        </div>
+        <div class="map-grid">
+          <a href="https://github.com/microsoft/qlib/blob/main/docs/start/getdata.rst"><strong>Data API</strong><span>docs/start/getdata.rst</span></a>
+          <a href="https://github.com/microsoft/qlib/blob/main/docs/component/workflow.rst"><strong>Workflow</strong><span>docs/component/workflow.rst</span></a>
+          <a href="https://github.com/microsoft/qlib/blob/main/examples/workflow_by_code.py"><strong>Python workflow</strong><span>examples/workflow_by_code.py</span></a>
+          <a href="https://github.com/microsoft/qlib/blob/main/examples/benchmarks/LightGBM/workflow_config_lightgbm_Alpha158.yaml"><strong>qrun config</strong><span>LightGBM Alpha158 YAML</span></a>
+          <a href="https://github.com/microsoft/qlib/blob/main/docs/component/strategy.rst"><strong>Strategy</strong><span>docs/component/strategy.rst</span></a>
+          <a href="https://github.com/microsoft/qlib/blob/main/docs/component/report.rst"><strong>Report</strong><span>docs/component/report.rst</span></a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Source: Microsoft Qlib at https://github.com/microsoft/qlib</span>
+      <span>Educational use only. This is not financial advice.</span>
+    </footer>
+
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral" });
+    </script>
+    <script src="app.js"></script>
+  </body>
+</html>
