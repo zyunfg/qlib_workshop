@@ -10,6 +10,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js"></script>
 </head>
 <body>
   <nav class="sidebar" id="sidebar">
@@ -20,6 +21,7 @@
     <ul class="nav-links">
       <li><a href="#intro" class="nav-link active">Introduction</a></li>
       <li><a href="#primer" class="nav-link">Quant Primer</a></li>
+      <li><a href="#layout" class="nav-link">Library Map</a></li>
       <li><a href="#install" class="nav-link">Installation</a></li>
       <li><a href="#data" class="nav-link">Data Layer</a></li>
       <li><a href="#pipeline" class="nav-link">ML Pipeline</a></li>
@@ -317,6 +319,166 @@ icir     = mean_ic / daily_ic.std()  # IC Information Ratio (consistency)</code>
 
       <div class="callout tip">
         <strong>Bottom line:</strong> Qlib is opinionated — it assumes you're doing cross-sectional alpha forecasting with daily rebalancing. That covers the vast majority of academic and quasi-institutional quant. For HFT, options, or pure portfolio optimization (no signal), you'll want different tools.
+      </div>
+    </section>
+
+    <!-- ── LIBRARY LAYOUT ─────────────────────────────────────────────── -->
+    <section id="layout" class="section">
+      <h2>Library Map</h2>
+      <p>The conceptual 4-layer diagram above shows what Qlib <em>does</em>. This diagram shows what the Python package <em>contains</em> — grouped by architectural role. Solid arrows are direct imports; dashed arrows show how <code>qlib.contrib</code> plugs into the base interfaces.</p>
+
+      <div class="legend">
+        <span class="legend-pill" style="background:rgba(79,142,247,0.25); border-color:#4f8ef7;">Interface</span>
+        <span class="legend-pill" style="background:rgba(124,92,191,0.25); border-color:#7c5cbf;">Workflow</span>
+        <span class="legend-pill" style="background:rgba(45,212,191,0.18); border-color:#2dd4bf;">Learning</span>
+        <span class="legend-pill" style="background:rgba(251,146,60,0.18); border-color:#fb923c;">Data Infra</span>
+        <span class="legend-pill" style="background:rgba(34,197,94,0.18); border-color:#22c55e;">Contrib (pluggable)</span>
+        <span class="legend-pill" style="background:rgba(71,85,105,0.4); border-color:#64748b;">Support</span>
+      </div>
+
+      <div class="mermaid-wrap">
+        <pre class="mermaid">
+graph TB
+    subgraph CLI["qlib.cli — Entry Point"]
+        qrun["qrun (YAML runner)"]
+    end
+
+    subgraph WORKFLOW["qlib.workflow — Experiment Management"]
+        R["R (Recorder API)"]
+        rec["record_temp<br/>SignalRecord · SigAnaRecord · PortAnaRecord"]
+        exp["expm (MLflow backend)"]
+        online["online/<br/>OnlineManager · RollingStrategy"]
+        task["task/<br/>TaskManager · TaskGen"]
+    end
+
+    subgraph MODEL["qlib.model — Model Framework"]
+        mbase["base.Model (.fit / .predict)"]
+        trainer["trainer (TrainerR)"]
+        ens["ens (ensemble)"]
+        meta["meta (meta-learning)"]
+        risk["riskmodel"]
+        interp["interpret"]
+    end
+
+    subgraph STRATEGY["qlib.strategy"]
+        sbase["base.BaseStrategy"]
+    end
+
+    subgraph BACKTEST["qlib.backtest — Simulation Engine"]
+        exec["executor<br/>SimulatorExecutor · NestedExecutor"]
+        exch["exchange (price / cost / limits)"]
+        acc["account · position"]
+        order["order · decision"]
+        rep["report (PortfolioMetrics)"]
+    end
+
+    subgraph DATA["qlib.data — Data Infrastructure"]
+        dsrv["data.D (DataServer)"]
+        ops["ops (Ref · Mean · Std · Rank ...)"]
+        base["base.Expression (parser)"]
+        dataset["dataset/<br/>DatasetH · DataHandlerLP · processors"]
+        storage["storage (binary columnar)"]
+        cache["cache · client · filter"]
+        pit["pit (point-in-time)"]
+    end
+
+    subgraph RL["qlib.rl — Reinforcement Learning"]
+        rltrainer["trainer"]
+        rlstrat["strategy"]
+        rlexec["order_execution"]
+        rldata["data"]
+    end
+
+    subgraph CONTRIB["qlib.contrib — Pluggable Implementations"]
+        cmodel["model/<br/>LGBModel · LSTM · Transformer · TRA · HIST · TabNet<br/>GATS · ADARNN · DoubleEnsemble · TCN · Localformer ..."]
+        cdata["data/<br/>Alpha158 · Alpha360 handlers"]
+        cstrat["strategy/<br/>TopkDropoutStrategy · WeightStrategy · SoftTopkStrategy"]
+        creport["report (analysis_model · analysis_position)"]
+        ceval["eva (signal_analysis · risk_analysis)"]
+        cops["ops (custom operators)"]
+        crolling["rolling"]
+        ctuner["tuner"]
+    end
+
+    subgraph SUPPORT["Support"]
+        util["qlib.utils"]
+        cfg["qlib.config (init · region)"]
+        const["qlib.constant"]
+        log["qlib.log"]
+        tests["qlib.tests (GetData)"]
+    end
+
+    qrun --> R
+    R --> rec
+    R --> exp
+    online --> R
+    task --> R
+
+    rec --> mbase
+    rec --> sbase
+    rec --> exec
+
+    cmodel -.implements.-> mbase
+    cstrat -.implements.-> sbase
+    cdata -.implements.-> dataset
+
+    mbase --> dataset
+    sbase --> exec
+    exec --> exch
+    exec --> acc
+    exec --> order
+    exec --> rep
+
+    dataset --> dsrv
+    dsrv --> base
+    base --> ops
+    cops -.extends.-> ops
+    dsrv --> storage
+    dsrv --> cache
+    dsrv --> pit
+
+    rltrainer --> rlstrat
+    rlstrat --> rlexec
+    rlstrat --> sbase
+    rlexec --> exec
+
+    classDef interface fill:#4f8ef7,stroke:#fff,color:#fff
+    classDef workflow fill:#7c5cbf,stroke:#fff,color:#fff
+    classDef learning fill:#2dd4bf,stroke:#0f1117,color:#0f1117
+    classDef infra fill:#fb923c,stroke:#0f1117,color:#0f1117
+    classDef contrib fill:#22c55e,stroke:#0f1117,color:#0f1117
+    classDef support fill:#475569,stroke:#fff,color:#fff
+
+    class CLI interface
+    class WORKFLOW workflow
+    class MODEL,STRATEGY,BACKTEST,RL learning
+    class DATA infra
+    class CONTRIB contrib
+    class SUPPORT support
+        </pre>
+      </div>
+
+      <h3>Why this matters</h3>
+      <p>Everything in <code>qlib.contrib</code> is <em>pluggable</em>. The dashed lines mean: any class in <code>qlib.contrib.model</code> implements the <code>Model</code> interface from <code>qlib.model.base</code> — so you can swap LightGBM for a Transformer just by changing two strings in YAML (<code>module_path</code> + <code>class</code>). Same for strategies and data handlers.</p>
+      <p>This is why Qlib is described as "loose-coupled." If you want to add your own model, you don't fork the framework — you write a class implementing the base interface and reference it in config.</p>
+
+      <h3>Quick lookup table</h3>
+      <div class="mapping-table">
+        <table>
+          <thead><tr><th>Want to…</th><th>Look in</th></tr></thead>
+          <tbody>
+            <tr><td>Query market data</td><td><code>qlib.data</code> — <code>D.features()</code></td></tr>
+            <tr><td>Pre-built feature sets</td><td><code>qlib.contrib.data.handler</code> — Alpha158, Alpha360</td></tr>
+            <tr><td>Train an ML model</td><td><code>qlib.contrib.model.*</code></td></tr>
+            <tr><td>Write a custom model</td><td><code>qlib.model.base.Model</code></td></tr>
+            <tr><td>Define portfolio logic</td><td><code>qlib.contrib.strategy</code> or <code>qlib.strategy.base</code></td></tr>
+            <tr><td>Run a backtest</td><td><code>qlib.backtest</code>, <code>qlib.contrib.evaluate</code></td></tr>
+            <tr><td>Track experiments</td><td><code>qlib.workflow.R</code></td></tr>
+            <tr><td>Production rolling</td><td><code>qlib.workflow.online</code></td></tr>
+            <tr><td>RL order execution</td><td><code>qlib.rl</code></td></tr>
+            <tr><td>Plot results</td><td><code>qlib.contrib.report</code></td></tr>
+          </tbody>
+        </table>
       </div>
     </section>
 

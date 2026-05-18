@@ -4,11 +4,38 @@ document.addEventListener("DOMContentLoaded", () => {
   addCopyButtons();
   initTabs();
   initScrollSpy();
+  initMermaid();
 });
+
+// ── Mermaid (dark theme tuned to site palette) ────────────────────────
+function initMermaid() {
+  if (typeof mermaid === "undefined") return;
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: "dark",
+    themeVariables: {
+      background: "#0f1117",
+      primaryColor: "#1e2433",
+      primaryTextColor: "#e2e8f0",
+      primaryBorderColor: "#4f8ef7",
+      lineColor: "#8892a4",
+      secondaryColor: "#161b27",
+      tertiaryColor: "#1a1f2e",
+      clusterBkg: "rgba(255,255,255,0.025)",
+      clusterBorder: "#2a3145",
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    },
+    flowchart: {
+      curve: "basis",
+      htmlLabels: true,
+      padding: 14,
+    },
+  });
+}
 
 // ── Copy buttons ──────────────────────────────────────────────────────
 function addCopyButtons() {
-  document.querySelectorAll("pre").forEach(pre => {
+  document.querySelectorAll("pre:not(.mermaid)").forEach(pre => {
     const btn = document.createElement("button");
     btn.className = "copy-btn";
     btn.textContent = "Copy";
