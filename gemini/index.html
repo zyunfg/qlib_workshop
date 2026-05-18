@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qlib Workshop</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            color: #333;
+            background-color: #f4f4f9;
+        }
+        header {
+            background: #2c3e50;
+            color: #fff;
+            padding: 20px 0;
+            text-align: center;
+        }
+        .container {
+            width: 80%;
+            margin: 20px auto;
+            background: #fff;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        header h1 {
+            color: #fff;
+        }
+        code {
+            background: #eee;
+            padding: 2px 5px;
+            border-radius: 4px;
+        }
+        pre {
+            background: #eee;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+    <!-- Include Mermaid -->
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+      mermaid.initialize({ startOnLoad: true });
+    </script>
+</head>
+<body>
+
+<header>
+    <h1>Microsoft Qlib Workshop</h1>
+    <p>A comprehensive guide to Quantitative Trading and Qlib</p>
+</header>
+
+<div class="container">
+    <h2>1. Quantitative Trading Tutorial</h2>
+    <p>Before diving into Qlib, it is important to understand the core concepts of quantitative trading.</p>
+    
+    <h3>What is Quantitative Trading?</h3>
+    <p>Quantitative trading consists of trading strategies based on quantitative analysis, which rely on mathematical computations and number crunching to identify trading opportunities.</p>
+    
+    <h3>Key Concepts</h3>
+    <ul>
+        <li><strong>Alpha (α):</strong> The excess return of an investment relative to the return of a benchmark index. It represents the value that a portfolio manager adds to or subtracts from a fund's return.</li>
+        <li><strong>Beta (β):</strong> A measure of the volatility, or systematic risk, of a security or a portfolio in comparison to the entire market or a benchmark.</li>
+        <li><strong>Signals (Factors):</strong> Measurable characteristics of an asset that are predictive of its future returns. Examples include moving averages, momentum, and fundamental data ratios (like P/E).</li>
+        <li><strong>Backtesting:</strong> The general method for seeing how well a strategy or model would have done ex-post. It assesses the viability of a trading strategy by discovering how it would play out using historical data.</li>
+        <li><strong>Slippage:</strong> The difference between the expected price of a trade and the price at which the trade is executed. Often occurs during periods of higher volatility.</li>
+        <li><strong>Information Ratio (IR):</strong> A measurement of portfolio returns beyond the returns of a benchmark, usually an index, compared to the volatility of those returns.</li>
+        <li><strong>Sharpe Ratio:</strong> Used to help investors understand the return of an investment compared to its risk.</li>
+    </ul>
+</div>
+
+<div class="container">
+    <h2>2. Qlib Architecture</h2>
+    <p>Microsoft Qlib is an AI-oriented quantitative investment platform that aims to realize the potential, empower the research, and create value using AI technologies in quantitative investment.</p>
+    
+    <h3>Layout of the Qlib Library</h3>
+    <p>The following Mermaid diagram illustrates the general architecture and workflow within Qlib:</p>
+    
+    <div class="mermaid">
+        graph TD
+            subgraph "Data Layer"
+                A[Data Loader] --> B[Data Handler]
+                B --> C[Dataset]
+                D[Features/Factors] -.-> A
+            end
+            
+            subgraph "Model Layer"
+                C --> E[AI Models]
+                E --> |LightGBM, DNN, etc.| F[Predictions / Signals]
+            end
+            
+            subgraph "Execution & Record Layer"
+                F --> G[Portfolio Manager]
+                G --> H[Execution Env]
+                H --> I[Backtest]
+            end
+            
+            subgraph "Analysis Layer"
+                I --> J[Analyzer]
+                J --> K[Metrics: Alpha, Beta, Sharpe, IR]
+                J --> L[Report Generation]
+            end
+            
+            subgraph "Workflow Engine"
+                M[Experiment Manager] --> |Tracks| E
+                M --> |Tracks| I
+            end
+    </div>
+</div>
+
+<div class="container">
+    <h2>3. Using Qlib: A Quick Workshop</h2>
+    
+    <h3>Installation</h3>
+    <pre><code>pip install pyqlib</code></pre>
+    <p>It's also recommended to clone the repository to run examples and use the scripts provided:</p>
+    <pre><code>git clone https://github.com/microsoft/qlib.git
+cd qlib
+python setup.py install</code></pre>
+
+    <h3>Data Preparation</h3>
+    <p>Qlib provides scripts to download historical data (e.g., from Yahoo Finance) and format it correctly:</p>
+    <pre><code>python qlib/scripts/get_data.py qlib_data --target_dir ~/.qlib/qlib_data/cn_data --region cn</code></pre>
+    
+    <h3>Model Training and Evaluation</h3>
+    <p>Qlib uses configuration files (YAML) to define the entire workflow, from data loading to model training and backtesting.</p>
+    <pre><code># Inside the qlib/examples directory
+qrun benchmarks/LightGBM/workflow_config_lightgbm_Alpha158.yaml</code></pre>
+    
+    <p>The <code>qrun</code> command will execute the pipeline and output the backtesting metrics like Information Ratio (IR) and annualized returns.</p>
+    
+    <h3>Next Steps</h3>
+    <p>Explore the <a href="https://github.com/microsoft/qlib" target="_blank">Qlib GitHub Repository</a> and read the <a href="https://qlib.readthedocs.io/" target="_blank">official documentation</a> to learn how to create your own custom alpha models and datasets.</p>
+</div>
+
+</body>
+</html>
