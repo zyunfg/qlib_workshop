@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Qlib Workshop — AI-Powered Quantitative Investing</title>
+  <link rel="stylesheet" href="static/style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+</head>
+<body>
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">Q<span>lib</span></div>
+      <div class="logo-sub">Workshop</div>
+    </div>
+    <ul class="nav-links">
+      <li><a href="#intro" class="nav-link active">Introduction</a></li>
+      <li><a href="#primer" class="nav-link">Quant Primer</a></li>
+      <li><a href="#install" class="nav-link">Installation</a></li>
+      <li><a href="#data" class="nav-link">Data Layer</a></li>
+      <li><a href="#pipeline" class="nav-link">ML Pipeline</a></li>
+      <li><a href="#models" class="nav-link">Models</a></li>
+      <li><a href="#backtest" class="nav-link">Backtesting</a></li>
+      <li><a href="#workflow" class="nav-link">Full Workflow</a></li>
+      <li><a href="#online" class="nav-link">Online Serving</a></li>
+      <li><a href="#tips" class="nav-link">Tips &amp; Gotchas</a></li>
+    </ul>
+    <div class="sidebar-footer">
+      <a href="https://github.com/microsoft/qlib" target="_blank">GitHub</a>
+      &nbsp;·&nbsp;
+      <a href="https://qlib.readthedocs.io" target="_blank">Docs</a>
+    </div>
+  </nav>
+
+  <main class="content">
+    <!-- ── INTRO ─────────────────────────────────────────────────────── -->
+    <section id="intro" class="section">
+      <div class="hero">
+        <h1>Qlib Workshop</h1>
+        <p class="hero-sub">Microsoft's open-source AI-oriented quantitative investment platform — from raw market data to live trading strategies.</p>
+        <div class="badge-row">
+          <span class="badge">Python 3.8+</span>
+          <span class="badge">PyTorch</span>
+          <span class="badge">End-to-end ML</span>
+          <span class="badge">Backtesting</span>
+          <span class="badge">Online Serving</span>
+        </div>
+      </div>
+
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-icon">📊</div>
+          <h3>Data Infrastructure</h3>
+          <p>High-performance storage for OHLCV, fundamental, and alternative data. Point-in-time safe queries prevent look-ahead bias.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🤖</div>
+          <h3>ML Models</h3>
+          <p>20+ SOTA models: LightGBM, LSTM, Transformer, TRA, HIST, and more — all pluggable via config.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">📈</div>
+          <h3>Backtesting</h3>
+          <p>Realistic simulation with transaction costs, slippage, and position limits. Portfolio analysis with IC, Sharpe, max drawdown.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🔄</div>
+          <h3>Online Serving</h3>
+          <p>Rolling model updates, concept drift detection, and production deployment — the full research-to-prod cycle.</p>
+        </div>
+      </div>
+
+      <div class="arch-diagram">
+        <h2>Architecture Overview</h2>
+        <div class="arch-layers">
+          <div class="arch-layer layer-interface">
+            <div class="layer-label">Interface</div>
+            <div class="layer-items">
+              <span>qrun (YAML)</span>
+              <span>Python API</span>
+              <span>Analyser</span>
+            </div>
+          </div>
+          <div class="arch-arrow">▼</div>
+          <div class="arch-layer layer-workflow">
+            <div class="layer-label">Workflow</div>
+            <div class="layer-items">
+              <span>Information Extractor</span>
+              <span>Forecast Model</span>
+              <span>Decision Generator</span>
+              <span>Execution Env</span>
+            </div>
+          </div>
+          <div class="arch-arrow">▼</div>
+          <div class="arch-layer layer-learning">
+            <div class="layer-label">Learning Framework</div>
+            <div class="layer-items">
+              <span>Supervised Learning</span>
+              <span>Reinforcement Learning</span>
+              <span>Meta-Learning</span>
+            </div>
+          </div>
+          <div class="arch-arrow">▼</div>
+          <div class="arch-layer layer-infra">
+            <div class="layer-label">Infrastructure</div>
+            <div class="layer-items">
+              <span>DataServer</span>
+              <span>Trainer</span>
+              <span>MLflow Recorder</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── QUANT PRIMER ───────────────────────────────────────────────── -->
+    <section id="primer" class="section">
+      <h2>Quant Primer — Concepts You'll Need</h2>
+      <p>Qlib is a tool — but to use it well you need the mental model of <em>systematic quantitative investing</em>. This section is the crash course: every concept here maps directly to a Qlib API in the sections that follow.</p>
+
+      <h3>1. The Quant Investment Loop</h3>
+      <p>At its core, systematic quant follows one loop, repeated daily/weekly:</p>
+      <div class="flow-diagram">
+        <div class="flow-step"><div class="flow-num">1</div><div class="flow-label">Raw Data</div><div class="flow-sub">OHLCV, fundamentals</div></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step"><div class="flow-num">2</div><div class="flow-label">Features</div><div class="flow-sub">Factors, signals</div></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step"><div class="flow-num">3</div><div class="flow-label">Model</div><div class="flow-sub">Predict future returns</div></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step"><div class="flow-num">4</div><div class="flow-label">Strategy</div><div class="flow-sub">Predictions → positions</div></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step"><div class="flow-num">5</div><div class="flow-label">Execution</div><div class="flow-sub">Trade, measure, repeat</div></div>
+      </div>
+      <p>Qlib provides components for <em>every</em> step. The Data Layer handles (1)–(2), the ML Pipeline handles (2)–(3), the Backtester handles (4)–(5).</p>
+
+      <h3>2. Alpha — What We're Actually Predicting</h3>
+      <p><strong>Alpha</strong> is excess return — the return your strategy earns <em>above</em> a passive benchmark (e.g. holding the index). Generating alpha means picking stocks better than random.</p>
+      <p>In Qlib, your model's output is interpreted as an <em>alpha signal</em>: a number per (stock, day) where <strong>higher = expect this stock to outperform</strong>. The absolute value doesn't matter — only the <em>ranking</em> across stocks on the same day.</p>
+      <div class="callout info">
+        <strong>Key intuition:</strong> Your model doesn't have to predict actual return percentages. It just has to sort stocks correctly. Stock A with predicted score 0.8 should outperform stock B with score 0.2 — even if both go down in absolute terms.
+      </div>
+
+      <h3>3. Features (Factors) — The Model's Inputs</h3>
+      <p>A <strong>factor</strong> is any computable function of a stock's history that <em>might</em> predict future returns. Decades of academic research have produced a zoo of them:</p>
+      <div class="factor-grid">
+        <div class="factor-card">
+          <div class="factor-name">Momentum</div>
+          <div class="factor-formula">Return($close, 20)</div>
+          <p>Recent winners tend to keep winning over 1–12 months. The most robust anomaly in finance.</p>
+        </div>
+        <div class="factor-card">
+          <div class="factor-name">Reversal</div>
+          <div class="factor-formula">−Return($close, 5)</div>
+          <p>Short-term (1–5 day) losers bounce back. Opposite sign to momentum at short horizons.</p>
+        </div>
+        <div class="factor-card">
+          <div class="factor-name">Volatility</div>
+          <div class="factor-formula">Std(Return($close, 1), 20)</div>
+          <p>Lower-volatility stocks have historically earned higher risk-adjusted returns ("low-vol anomaly").</p>
+        </div>
+        <div class="factor-card">
+          <div class="factor-name">Volume</div>
+          <div class="factor-formula">$volume / Mean($volume, 20)</div>
+          <p>Unusual volume signals attention, news, or institutional flow.</p>
+        </div>
+        <div class="factor-card">
+          <div class="factor-name">Value</div>
+          <div class="factor-formula">B/P, E/P, S/P</div>
+          <p>Cheap stocks (low price relative to book/earnings) outperform long-term. Needs fundamentals data.</p>
+        </div>
+        <div class="factor-card">
+          <div class="factor-name">Quality</div>
+          <div class="factor-formula">ROE, accruals</div>
+          <p>Profitable, well-run companies with clean accounting tend to outperform.</p>
+        </div>
+      </div>
+      <p>Qlib's <strong>Alpha158</strong> handler bundles 158 such factors. You don't need to invent your own to start — but the magic happens when you do.</p>
+
+      <h3>4. Labels — What We're Predicting Toward</h3>
+      <p>The <strong>label</strong> is the future return your features try to predict. The standard Qlib label:</p>
+      <pre><code class="language-python"># "Predict tomorrow's return using today's features"
+label = "Ref($close, -2) / Ref($close, -1) - 1"</code></pre>
+      <p>Reading the expression: <code>Ref($close, -1)</code> is tomorrow's close (used to enter the position), <code>Ref($close, -2)</code> is the day-after close (exit). This is the return from holding the stock for one day, starting <em>tomorrow</em>.</p>
+      <div class="callout tip">
+        <strong>Why -1 and -2, not 0 and -1?</strong> Because today's data (close, volume) isn't fully known until end-of-day. By the time you can act on the signal, you can only trade <em>tomorrow's</em> open or close. Trading on today's close-to-close return is impossible — that's look-ahead bias.
+      </div>
+
+      <h3>5. Cross-Sectional Thinking</h3>
+      <p>Most quant models are <strong>cross-sectional</strong>: for each day, you rank all stocks in your universe by predicted alpha, then long the top decile and short the bottom decile (or just long the top, if shorting isn't available).</p>
+      <p>This is why Qlib normalizes labels with <code>CSRankNorm</code> — it converts raw returns to cross-sectional ranks within each day. The model learns to predict <em>relative</em> performance, not absolute returns. Absolute returns are dominated by market-wide noise that no model can predict.</p>
+      <div class="comparison-row">
+        <div class="comparison-side">
+          <div class="comparison-title">❌ Time-series view</div>
+          <div class="comparison-body">"Will AAPL go up tomorrow?"<br><small>Hard — too much noise, market regime dominates.</small></div>
+        </div>
+        <div class="comparison-side">
+          <div class="comparison-title">✅ Cross-sectional view</div>
+          <div class="comparison-body">"Among 300 stocks tomorrow, which 30 will outperform the other 270?"<br><small>Tractable — relative ranking is more stable.</small></div>
+        </div>
+      </div>
+
+      <h3>6. Information Coefficient (IC) — The Quant's North Star</h3>
+      <p>How do you know if a signal is any good? <strong>IC</strong> is the rank correlation between your predictions and realized returns on each day.</p>
+      <pre><code class="language-python"># Conceptually: each day, compute Spearman correlation of (predictions, actual returns)
+daily_ic = predictions.groupby("date").corr(actual_returns, method="spearman")
+mean_ic  = daily_ic.mean()       # average daily IC
+icir     = mean_ic / daily_ic.std()  # IC Information Ratio (consistency)</code></pre>
+      <div class="metrics-table">
+        <table>
+          <thead><tr><th>IC value</th><th>Interpretation</th></tr></thead>
+          <tbody>
+            <tr><td>0.00</td><td>Random — no predictive power</td></tr>
+            <tr><td>0.02</td><td>Weak — borderline tradeable</td></tr>
+            <tr><td>0.05</td><td>Strong — competitive with top hedge funds</td></tr>
+            <tr><td>0.10+</td><td>Suspicious — likely a bug or data leak</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>ICIR</strong> measures whether the signal is consistent. An ICIR &gt; 0.5 means your IC is reliably positive day after day — not just lucky in one regime.</p>
+
+      <h3>7. From Predictions to a Portfolio</h3>
+      <p>A prediction per stock is not yet a trade. A <strong>strategy</strong> converts predictions into positions. Qlib's default <code>TopkDropoutStrategy</code> works like this:</p>
+      <ol class="numbered-list">
+        <li>Every rebalance day, rank all stocks by predicted alpha.</li>
+        <li>You want to hold the top <code>k</code> stocks (e.g. top 50).</li>
+        <li>From your current holdings, drop the <code>n_drop</code> lowest-ranked stocks (e.g. drop bottom 5).</li>
+        <li>Buy <code>n_drop</code> new stocks from the top of the ranking that you don't already own.</li>
+        <li>Hold equal-weighted positions in the resulting <code>k</code> stocks.</li>
+      </ol>
+      <p>This trades only a fraction of the portfolio each day, which keeps transaction costs manageable. Alternative strategies: mean-variance optimization (Markowitz), risk-parity, factor-neutral long-short, etc.</p>
+
+      <h3>8. Backtesting — Measuring Performance</h3>
+      <p>A <strong>backtest</strong> simulates running your strategy on historical data. The output is a PnL curve and a set of metrics:</p>
+      <div class="metrics-table">
+        <table>
+          <thead><tr><th>Metric</th><th>What it tells you</th></tr></thead>
+          <tbody>
+            <tr><td>Annualized Return</td><td>CAGR of the strategy</td></tr>
+            <tr><td>Sharpe Ratio</td><td>Return per unit of volatility (annualized). &gt; 1 is good, &gt; 2 is great.</td></tr>
+            <tr><td>Information Ratio (IR)</td><td>Sharpe of <em>excess</em> return over benchmark. Measures skill, not market exposure.</td></tr>
+            <tr><td>Max Drawdown</td><td>Worst peak-to-trough loss. Determines whether you can stomach the strategy.</td></tr>
+            <tr><td>Turnover</td><td>What fraction of the portfolio trades per day. High turnover = high cost sensitivity.</td></tr>
+            <tr><td>Win Rate / Hit Rate</td><td>Fraction of days/trades that are profitable.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>9. The Pitfalls (Read This Twice)</h3>
+      <p>Bad quant research isn't just useless — it's actively dangerous. Every shiny backtest hides one of these:</p>
+      <div class="tip-list">
+        <div class="tip-item">
+          <div class="tip-icon">🔮</div>
+          <div>
+            <strong>Look-ahead bias</strong><br>
+            Using information not yet available at decision time. Classic example: normalizing features using statistics computed over the <em>entire dataset</em> (including future). Qlib's <code>fit_start_time</code> / <code>fit_end_time</code> exists exactly to prevent this.
+          </div>
+        </div>
+        <div class="tip-item">
+          <div class="tip-icon">⚰️</div>
+          <div>
+            <strong>Survivorship bias</strong><br>
+            Backtesting only on stocks that exist today. Bankrupt or delisted stocks vanish from your universe, so your backtest only "sees" survivors — inflating returns. Qlib's CSI300 dataset is point-in-time, so members at each date reflect the actual index then.
+          </div>
+        </div>
+        <div class="tip-item">
+          <div class="tip-icon">💸</div>
+          <div>
+            <strong>Ignoring transaction costs</strong><br>
+            A signal with 0.05 IC can have negative real-world returns if its turnover is too high. Always model commission, slippage, and (in China) stamp duty. Set <code>open_cost</code>, <code>close_cost</code>, <code>min_cost</code> in backtests.
+          </div>
+        </div>
+        <div class="tip-item">
+          <div class="tip-icon">🎯</div>
+          <div>
+            <strong>Overfitting</strong><br>
+            Try 100 factor combinations on the same test set, pick the best — congrats, you've overfit. Always hold out a <em>final</em> test period you never look at until you're done iterating. Cross-validation alone isn't enough in time-series.
+          </div>
+        </div>
+        <div class="tip-item">
+          <div class="tip-icon">🌊</div>
+          <div>
+            <strong>Regime change</strong><br>
+            A factor that worked 2010–2020 may stop working in 2022. Markets evolve. This is why Qlib has <strong>rolling training</strong> and the <strong>Online Manager</strong> — your model must refit periodically as the world changes.
+          </div>
+        </div>
+        <div class="tip-item">
+          <div class="tip-icon">📉</div>
+          <div>
+            <strong>Capacity</strong><br>
+            A strategy that works on $1M may collapse at $100M because your trades move the market. Low-cap stocks especially have liquidity limits. Qlib's <code>limit_threshold</code> models price-limit hits in A-shares, but slippage modeling is on you.
+          </div>
+        </div>
+      </div>
+
+      <h3>10. How Qlib Maps to These Concepts</h3>
+      <div class="mapping-table">
+        <table>
+          <thead><tr><th>Concept</th><th>Qlib Component</th></tr></thead>
+          <tbody>
+            <tr><td>Raw data</td><td><code>D.features()</code>, qlib_data binary format</td></tr>
+            <tr><td>Factors / features</td><td>Expression engine (<code>$close</code>, <code>Ref</code>, <code>Mean</code>, ...) + <code>Alpha158</code> handler</td></tr>
+            <tr><td>Labels</td><td>Handler's <code>label</code> field (forward-return expression)</td></tr>
+            <tr><td>Cross-sectional normalization</td><td><code>CSRankNorm</code>, <code>CSZScoreNorm</code> processors</td></tr>
+            <tr><td>Train/valid/test splitting</td><td><code>DatasetH</code> segments</td></tr>
+            <tr><td>Alpha model</td><td><code>qlib.contrib.model.*</code> — LGBM, LSTM, Transformer, ...</td></tr>
+            <tr><td>Predictions → positions</td><td><code>TopkDropoutStrategy</code>, other strategies in <code>qlib.contrib.strategy</code></td></tr>
+            <tr><td>Backtest engine</td><td><code>backtest_daily()</code>, <code>SimulatorExecutor</code></td></tr>
+            <tr><td>IC / ICIR analysis</td><td><code>SignalRecord</code>, <code>SigAnaRecord</code></td></tr>
+            <tr><td>Rolling retraining</td><td><code>RollingStrategy</code>, <code>OnlineManager</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout tip">
+        <strong>Bottom line:</strong> Qlib is opinionated — it assumes you're doing cross-sectional alpha forecasting with daily rebalancing. That covers the vast majority of academic and quasi-institutional quant. For HFT, options, or pure portfolio optimization (no signal), you'll want different tools.
+      </div>
+    </section>
+
+    <!-- ── INSTALL ────────────────────────────────────────────────────── -->
+    <section id="install" class="section">
+      <h2>Installation</h2>
+      <p>Qlib requires Python 3.8+ and can be installed via pip or from source. For GPU-accelerated models install PyTorch first.</p>
+
+      <div class="tabs" data-tab-group="install">
+        <button class="tab-btn active" data-tab="pip">pip (stable)</button>
+        <button class="tab-btn" data-tab="source">from source</button>
+        <button class="tab-btn" data-tab="docker">Docker</button>
+      </div>
+
+      <div class="tab-content active" data-tab-content="pip">
+        <pre><code class="language-bash"># Install stable release
+pip install pyqlib
+
+# With all optional dependencies (pytorch models, RL, etc.)
+pip install "pyqlib[all]"</code></pre>
+      </div>
+      <div class="tab-content" data-tab-content="source">
+        <pre><code class="language-bash">git clone https://github.com/microsoft/qlib.git
+cd qlib
+pip install -e .          # editable install — changes reflected immediately
+
+# Optional: install dev dependencies
+pip install -e ".[dev]"</code></pre>
+      </div>
+      <div class="tab-content" data-tab-content="docker">
+        <pre><code class="language-bash">docker pull mcr.microsoft.com/qlib/qlib:latest
+
+# Or build from the repo
+cd qlib
+docker build -t qlib .
+docker run -it -v $(pwd):/workspace qlib bash</code></pre>
+      </div>
+
+      <div class="callout info">
+        <strong>Note:</strong> On Apple Silicon (M1/M2) set <code>QLIB_USE_NUMBA=0</code> if you hit compilation errors with Numba.
+      </div>
+
+      <h3>Verify Installation</h3>
+      <pre><code class="language-python">import qlib
+print(qlib.__version__)   # e.g. 0.9.6</code></pre>
+    </section>
+
+    <!-- ── DATA ──────────────────────────────────────────────────────── -->
+    <section id="data" class="section">
+      <h2>Data Layer</h2>
+      <p>Qlib's data layer is its foundation. It stores market data in a binary columnar format optimized for fast time-series access.</p>
+
+      <h3>Download Sample Data</h3>
+      <pre><code class="language-python">import qlib
+from qlib.tests.data import GetData
+
+# Download CSI300 (China A-shares) sample — ~400 MB
+provider_uri = "~/.qlib/qlib_data/cn_data"
+GetData().qlib_data(target_dir=provider_uri, region="cn")
+
+# For US stocks:
+# GetData().qlib_data(target_dir="~/.qlib/qlib_data/us_data", region="us")</code></pre>
+
+      <h3>Initialize Qlib</h3>
+      <pre><code class="language-python">import qlib
+from qlib.constant import REG_CN
+
+qlib.init(
+    provider_uri="~/.qlib/qlib_data/cn_data",
+    region=REG_CN,         # or REG_US for US market
+)</code></pre>
+
+      <h3>Querying Data</h3>
+      <pre><code class="language-python">from qlib.data import D
+
+# ── Basic feature expression ──────────────────────────────────────────
+# Closing prices for CSI300 stocks over a date range
+df = D.features(
+    instruments="csi300",
+    fields=["$close", "$volume", "$open", "$high", "$low"],
+    start_time="2020-01-01",
+    end_time="2022-12-31",
+    freq="day",
+)
+print(df.head())
+
+# ── Feature engineering with Qlib operators ───────────────────────────
+# All ops run server-side — blazing fast on 5000+ stocks
+features = [
+    "Ref($close, 1)",          # yesterday's close
+    "Return($close, 1)",        # 1-day return
+    "Mean($volume, 20)",        # 20-day average volume
+    "Std($close, 20)",          # 20-day volatility
+    "($close - $open) / $open", # intraday spread
+    "Rank(Return($close, 5))",  # 5-day return rank cross-section
+]
+df = D.features("csi300", fields=features, start_time="2021-01-01", end_time="2022-01-01")</code></pre>
+
+      <div class="callout tip">
+        <strong>Tip:</strong> Qlib's expression engine is <em>point-in-time safe</em>. <code>Ref($close, 1)</code> at trading day <em>T</em> returns the close of <em>T-1</em> — it never leaks future data.
+      </div>
+
+      <h3>Instruments</h3>
+      <pre><code class="language-python">from qlib.data import D
+
+# Pre-defined universes
+instruments = D.list_instruments(instruments="csi300", start_time="2022-01-01", end_time="2022-12-31")
+print(list(instruments.keys())[:5])
+
+# Custom universe from a list
+from qlib.data.dataset.handler import DataHandlerLP
+custom = ["SH600000", "SH600036", "SZ000001"]
+df = D.features(custom, ["$close", "$volume"], start_time="2022-01-01", end_time="2022-12-31")</code></pre>
+
+      <h3>Data Handler</h3>
+      <p>DataHandlers are reusable preprocessing pipelines — normalization, missing-value fill, feature stacking — that run before the model sees the data.</p>
+      <pre><code class="language-python">from qlib.contrib.data.handler import Alpha158
+
+handler = Alpha158(
+    instruments="csi300",
+    start_time="2008-01-01",
+    end_time="2022-12-31",
+    fit_start_time="2008-01-01",
+    fit_end_time="2014-12-31",   # fit normalizers only on training data
+)
+
+# Retrieve prepared features
+df = handler.fetch(col_set="feature")
+print(df.shape)   # (n_days * n_stocks, 158)</code></pre>
+
+      <div class="callout info">
+        <strong>Alpha158</strong> is the classic 158-factor alpha set used in most Qlib papers. <strong>Alpha360</strong> is a richer 360-factor version for deep learning models.
+      </div>
+    </section>
+
+    <!-- ── PIPELINE ───────────────────────────────────────────────────── -->
+    <section id="pipeline" class="section">
+      <h2>ML Pipeline — Dataset &amp; Processors</h2>
+      <p>A <strong>Dataset</strong> wraps a DataHandler and adds train/valid/test splitting and label generation. Processors apply per-split transformations.</p>
+
+      <h3>Building a Dataset by Code</h3>
+      <pre><code class="language-python">from qlib.data.dataset import DatasetH
+from qlib.data.dataset.handler import DataHandlerLP
+from qlib.data.dataset.processor import RobustZScoreNorm, Fillna, CSRankNorm
+
+# Common processors
+processors = {
+    "feature": [
+        {"class": "RobustZScoreNorm", "kwargs": {"fields_group": "feature", "clip_outlier": True}},
+        {"class": "Fillna", "kwargs": {"fields_group": "feature"}},
+    ],
+    "label": [
+        {"class": "CSRankNorm", "kwargs": {"fields_group": "label"}},   # cross-sectional rank
+    ],
+}
+
+dataset = DatasetH(
+    handler={
+        "class": "Alpha158",
+        "module_path": "qlib.contrib.data.handler",
+        "kwargs": {
+            "start_time": "2008-01-01",
+            "end_time": "2022-12-31",
+            "fit_start_time": "2008-01-01",
+            "fit_end_time": "2014-12-31",
+            "instruments": "csi300",
+        },
+    },
+    segments={
+        "train": ("2008-01-01", "2014-12-31"),
+        "valid": ("2015-01-01", "2016-12-31"),
+        "test":  ("2017-01-01", "2022-12-31"),
+    },
+)
+
+df_train = dataset.prepare("train", col_set=["feature", "label"], data_key="learn")</code></pre>
+
+      <h3>Equivalent YAML Config</h3>
+      <p>The same pipeline expressed as a <code>qrun</code>-compatible YAML — this is how most Qlib workflows are parameterized.</p>
+      <pre><code class="language-yaml">data_handler_config: &data_handler_config
+  class: Alpha158
+  module_path: qlib.contrib.data.handler
+  kwargs:
+    start_time: 2008-01-01
+    end_time: 2022-12-31
+    fit_start_time: 2008-01-01
+    fit_end_time: 2014-12-31
+    instruments: csi300
+    infer_processors:
+      - class: RobustZScoreNorm
+        kwargs:
+          fields_group: feature
+          clip_outlier: true
+      - class: Fillna
+        kwargs:
+          fields_group: feature
+    learn_processors:
+      - class: CSRankNorm
+        kwargs:
+          fields_group: label
+
+dataset:
+  class: DatasetH
+  module_path: qlib.data.dataset
+  kwargs:
+    handler:
+      <<: *data_handler_config
+    segments:
+      train: [2008-01-01, 2014-12-31]
+      valid: [2015-01-01, 2016-12-31]
+      test:  [2017-01-01, 2022-12-31]</code></pre>
+    </section>
+
+    <!-- ── MODELS ─────────────────────────────────────────────────────── -->
+    <section id="models" class="section">
+      <h2>Models</h2>
+      <p>Qlib ships 20+ models in <code>qlib.contrib.model</code>. Every model implements <code>.fit(dataset)</code> and <code>.predict(dataset)</code>.</p>
+
+      <div class="model-grid">
+        <div class="model-card">
+          <div class="model-name">LightGBM</div>
+          <div class="model-type">Tree</div>
+          <p>Fast gradient boosting. Best baseline for tabular alpha factors.</p>
+        </div>
+        <div class="model-card">
+          <div class="model-name">LSTM</div>
+          <div class="model-type">RNN</div>
+          <p>Captures sequential patterns in price/volume time series.</p>
+        </div>
+        <div class="model-card">
+          <div class="model-name">Transformer</div>
+          <div class="model-type">Attention</div>
+          <p>Self-attention across time steps. Strong on longer lookbacks.</p>
+        </div>
+        <div class="model-card">
+          <div class="model-name">TRA</div>
+          <div class="model-type">Adaptive</div>
+          <p>Temporal Routing Adaptor — handles regime changes.</p>
+        </div>
+        <div class="model-card">
+          <div class="model-name">HIST</div>
+          <div class="model-type">Graph</div>
+          <p>Historical stock trends with concept-aware attention.</p>
+        </div>
+        <div class="model-card">
+          <div class="model-name">TabNet</div>
+          <div class="model-type">DNN</div>
+          <p>Attention-based DNN with built-in feature selection.</p>
+        </div>
+      </div>
+
+      <h3>Training LightGBM</h3>
+      <pre><code class="language-python">from qlib.contrib.model.gbdt import LGBModel
+
+model = LGBModel(
+    loss="mse",
+    colsample_bytree=0.8587,
+    learning_rate=0.0534,
+    subsample=0.8731,
+    lambda_l1=205.6,
+    lambda_l2=580.6,
+    max_depth=8,
+    num_leaves=210,
+    num_threads=20,
+)
+
+model.fit(dataset)
+
+# Predict on test set — returns pd.Series indexed by (date, stock)
+predictions = model.predict(dataset)
+print(predictions.head(10))</code></pre>
+
+      <h3>Training an LSTM</h3>
+      <pre><code class="language-python">from qlib.contrib.model.pytorch_lstm import LSTM
+
+model = LSTM(
+    d_feat=158,          # number of input features (Alpha158)
+    hidden_size=64,
+    num_layers=2,
+    dropout=0.0,
+    n_epochs=200,
+    lr=1e-3,
+    early_stop=20,
+    batch_size=800,
+    loss="mse",
+    optimizer="adam",
+    GPU=0,               # -1 for CPU
+)
+
+model.fit(dataset)
+predictions = model.predict(dataset)</code></pre>
+
+      <h3>Custom Model Skeleton</h3>
+      <pre><code class="language-python">from qlib.model.base import Model
+
+class MyAlphaModel(Model):
+    def __init__(self, n_estimators=100, **kwargs):
+        self.n_estimators = n_estimators
+
+    def fit(self, dataset, evals_result=dict(), **kwargs):
+        df_train = dataset.prepare("train", col_set=["feature", "label"])
+        X = df_train["feature"]
+        y = df_train["label"].squeeze()
+        self._model = ...      # fit your model
+        return self
+
+    def predict(self, dataset, segment="test"):
+        df_test = dataset.prepare(segment, col_set=["feature"])
+        X = df_test["feature"]
+        return pd.Series(self._model.predict(X), index=X.index)</code></pre>
+    </section>
+
+    <!-- ── BACKTEST ───────────────────────────────────────────────────── -->
+    <section id="backtest" class="section">
+      <h2>Backtesting &amp; Portfolio Analysis</h2>
+      <p>Qlib's backtester simulates realistic trading: position limits, transaction costs, daily rebalancing. It then generates a full analytics report.</p>
+
+      <h3>Running a Backtest</h3>
+      <pre><code class="language-python">from qlib.contrib.evaluate import backtest_daily
+from qlib.contrib.strategy import TopkDropoutStrategy
+
+# Build strategy on top of model predictions
+strategy_config = {
+    "class": "TopkDropoutStrategy",
+    "module_path": "qlib.contrib.strategy.signal_strategy",
+    "kwargs": {
+        "signal": (model, dataset),   # model + dataset → signals
+        "topk": 50,                   # hold top-50 stocks
+        "n_drop": 5,                  # replace 5 stocks each rebalance
+    },
+}
+
+backtest_config = {
+    "start_time": "2017-01-01",
+    "end_time":   "2022-12-31",
+    "account":     100_000_000,   # 100M CNY
+    "benchmark":  "SH000300",    # CSI300 benchmark
+    "exchange_kwargs": {
+        "freq": "day",
+        "limit_threshold": 0.095,  # 9.5% daily price limit (China)
+        "deal_price": "close",
+        "open_cost":  0.0005,      # 5 bps commission
+        "close_cost": 0.0015,      # 15 bps (includes stamp duty)
+        "min_cost":   5,
+    },
+}
+
+portfolio_metric_dict, indicator_dict = backtest_daily(
+    pred=predictions,
+    strategy_config=strategy_config,
+    executor_config={"class": "SimulatorExecutor",
+                     "module_path": "qlib.backtest.executor",
+                     "kwargs": {"time_per_step": "day", "generate_portfolio_metrics": True}},
+    **backtest_config,
+)</code></pre>
+
+      <h3>Signal Analysis</h3>
+      <pre><code class="language-python">from qlib.contrib.evaluate import risk_analysis
+
+# IC / ICIR / Rank IC
+from qlib.contrib.report import analysis_model
+label_df = dataset.prepare("test", col_set="label")
+report = analysis_model.signal_analysis(
+    pred=predictions,
+    label=label_df,
+    freq="day",
+)
+
+print(report["IC"].describe())
+print(report["ICIR"])
+
+# Tearsheet
+from qlib.contrib.report import analysis_position
+analysis_position.report_graph(portfolio_metric_dict, show_notebook=False)</code></pre>
+
+      <h3>Key Metrics to Watch</h3>
+      <div class="metrics-table">
+        <table>
+          <thead>
+            <tr><th>Metric</th><th>What it measures</th><th>Good range</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>IC (Information Coefficient)</td><td>Rank correlation of predictions vs returns</td><td>&gt; 0.03</td></tr>
+            <tr><td>ICIR</td><td>IC / std(IC) — consistency of the signal</td><td>&gt; 0.5</td></tr>
+            <tr><td>Annualized Return</td><td>Portfolio CAGR</td><td>Depends on market</td></tr>
+            <tr><td>Information Ratio</td><td>Excess return / tracking error</td><td>&gt; 1.0</td></tr>
+            <tr><td>Max Drawdown</td><td>Peak-to-trough loss</td><td>&lt; 20%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── WORKFLOW ───────────────────────────────────────────────────── -->
+    <section id="workflow" class="section">
+      <h2>Full Workflow with MLflow Recorder</h2>
+      <p>Qlib wraps MLflow to track experiments, save model artifacts, and reproduce results. Every run is automatically logged.</p>
+
+      <h3>Complete End-to-End Script</h3>
+      <pre><code class="language-python">import qlib
+from qlib.constant import REG_CN
+from qlib.utils import init_instance_by_config
+from qlib.workflow import R
+from qlib.workflow.record_temp import SignalRecord, PortAnaRecord, SigAnaRecord
+
+# 1. Init
+qlib.init(provider_uri="~/.qlib/qlib_data/cn_data", region=REG_CN)
+
+# 2. Config
+task = {
+    "model": {
+        "class": "LGBModel",
+        "module_path": "qlib.contrib.model.gbdt",
+        "kwargs": {"num_leaves": 31, "n_estimators": 100, "learning_rate": 0.05},
+    },
+    "dataset": {
+        "class": "DatasetH",
+        "module_path": "qlib.data.dataset",
+        "kwargs": {
+            "handler": {
+                "class": "Alpha158",
+                "module_path": "qlib.contrib.data.handler",
+                "kwargs": {
+                    "start_time": "2008-01-01", "end_time": "2022-12-31",
+                    "fit_start_time": "2008-01-01", "fit_end_time": "2014-12-31",
+                    "instruments": "csi300",
+                },
+            },
+            "segments": {
+                "train": ("2008-01-01", "2014-12-31"),
+                "valid": ("2015-01-01", "2016-12-31"),
+                "test":  ("2017-01-01", "2022-12-31"),
+            },
+        },
+    },
+}
+
+model   = init_instance_by_config(task["model"])
+dataset = init_instance_by_config(task["dataset"])
+
+# 3. Run experiment — everything inside R.start() is tracked
+with R.start(experiment_name="lgb_csi300"):
+    # Log hyperparams
+    R.log_params(**{"num_leaves": 31, "lr": 0.05})
+
+    # Train
+    model.fit(dataset)
+    R.save_objects(**{"model.pkl": model})
+
+    recorder = R.get_recorder()
+
+    # Signal records (predictions + IC analysis)
+    sr = SignalRecord(model, dataset, recorder)
+    sr.generate()
+
+    sar = SigAnaRecord(recorder)
+    sar.generate()
+
+    # Portfolio analysis (backtest)
+    par = PortAnaRecord(recorder, port_analysis_config, "day")
+    par.generate()
+
+print("Experiment saved. Browse with: mlflow ui --backend-store-uri mlruns")</code></pre>
+
+      <h3>Running via YAML (qrun)</h3>
+      <pre><code class="language-bash"># Run the complete pipeline from a config file
+qrun examples/benchmarks/LightGBM/workflow_config_lightgbm_Alpha158.yaml</code></pre>
+
+      <pre><code class="language-yaml"># workflow_config_lightgbm_Alpha158.yaml (excerpt)
+qlib_init:
+  provider_uri: ~/.qlib/qlib_data/cn_data
+  region: cn
+
+market: csi300
+benchmark: SH000300
+
+experiment_name: lightgbm_alpha158
+
+model:
+  class: LGBModel
+  module_path: qlib.contrib.model.gbdt
+  kwargs:
+    loss: mse
+    learning_rate: 0.0534
+    num_leaves: 210
+
+record:
+  - class: SignalRecord
+    module_path: qlib.workflow.record_temp
+  - class: SigAnaRecord
+    module_path: qlib.workflow.record_temp
+  - class: PortAnaRecord
+    module_path: qlib.workflow.record_temp</code></pre>
+    </section>
+
+    <!-- ── ONLINE ─────────────────────────────────────────────────────── -->
+    <section id="online" class="section">
+      <h2>Online Serving &amp; Rolling Updates</h2>
+      <p>In production, market dynamics shift over time. Qlib's online module handles automatic model rolling, concept drift detection, and serving predictions.</p>
+
+      <h3>Rolling Training</h3>
+      <pre><code class="language-python">from qlib.model.trainer import TrainerR
+from qlib.workflow.online.strategy import RollingStrategy
+
+# Roll the model forward every quarter
+rolling_config = {
+    "step": 20,                 # refit every 20 trading days
+    "rtype": "expanding",       # or "rolling" for a sliding window
+    "train_start": "2008-01-01",
+    "train_end":   "2022-12-31",
+}
+
+# Use qrun with rolling_train.yaml or the API:
+from qlib.model.trainer import task_train
+from qlib.workflow import R
+
+with R.start(experiment_name="rolling_lgb"):
+    task_train(task_config, dataset)   # trains one fold</code></pre>
+
+      <h3>Online Manager</h3>
+      <pre><code class="language-python">from qlib.workflow.online.manager import OnlineManager
+from qlib.workflow.online.strategy import RollingStrategy
+
+# OnlineManager orchestrates model serving and rollover
+strategy = RollingStrategy(
+    experiment_name="rolling_lgb",
+    rolling_step=20,
+)
+
+om = OnlineManager(strategy)
+om.routine()     # called once per day in a scheduler (cron, Airflow, etc.)</code></pre>
+
+      <div class="callout tip">
+        <strong>Production pattern:</strong> Run <code>om.routine()</code> daily via cron or Airflow. It checks whether a new fold needs training, trains if so, and seamlessly switches to the new model.
+      </div>
+    </section>
+
+    <!-- ── TIPS ───────────────────────────────────────────────────────── -->
+    <section id="tips" class="section">
+      <h2>Tips &amp; Common Gotchas</h2>
+
+      <div class="tip-list">
+        <div class="tip-item">
+          <div class="tip-icon">⚠️</div>
+          <div>
+            <strong>Look-ahead bias</strong><br>
+            Always set <code>fit_start_time</code> / <code>fit_end_time</code> on your handler to match your training split. Fitting normalizers on all data leaks future statistics into training.
+          </div>
+        </div>
+        <div class="tip-item">
+          <div class="tip-icon">💾</div>
+          <div>
+            <strong>Data download takes time</strong><br>
+            The CSI300 daily dataset is ~400 MB. Run <code>GetData().qlib_data(...)</code> once, then point <code>qlib.init()</code> at the cached directory on every subsequent run.
+          </div>
+        </div>
+        <div class="tip-item">
+          <div class="tip-icon">🔧</div>
+          <div>
+            <strong>Feature expression typos</strong><br>
+            Field names are case-sensitive and prefixed with <code>$</code>. Use <code>$close</code>, not <code>$Close</code>. Qlib will silently return NaN for unknown fields in some versions.
+          </div>
+        </div>
+        <div class="tip-item">
+          <div class="tip-icon">📉</div>
+          <div>
+            <strong>Transaction cost matters</strong><br>
+            In China A-shares, stamp duty + commission can be 20–25 bps round-trip. Always set <code>open_cost</code> and <code>close_cost</code> in your backtest config — ignoring costs overstates returns significantly.
+          </div>
+        </div>
+        <div class="tip-item">
+          <div class="tip-icon">🔄</div>
+          <div>
+            <strong>Reproducibility</strong><br>
+            Set seeds for PyTorch and NumPy before model init. Use <code>R.get_recorder().load_object("model.pkl")</code> to reload a saved model exactly.
+          </div>
+        </div>
+        <div class="tip-item">
+          <div class="tip-icon">📦</div>
+          <div>
+            <strong>Module path format</strong><br>
+            Qlib resolves classes dynamically via <code>module_path</code> + <code>class</code>. This means you can drop any class implementing the right interface into a YAML config without modifying Qlib source.
+          </div>
+        </div>
+      </div>
+
+      <h3>Useful CLI Commands</h3>
+      <pre><code class="language-bash"># Run a full workflow from YAML
+qrun config.yaml
+
+# Launch MLflow UI to browse experiments
+mlflow ui --backend-store-uri ./mlruns --port 5000
+
+# Download Qlib data via CLI
+python -m qlib.run.get_data qlib_data --target_dir ~/.qlib/qlib_data/cn_data --region cn
+
+# List available pre-built handlers and models
+python -c "import qlib.contrib.data.handler; help(qlib.contrib.data.handler)"</code></pre>
+
+      <h3>Further Reading</h3>
+      <ul class="link-list">
+        <li><a href="https://qlib.readthedocs.io/en/latest/" target="_blank">Official Documentation</a> — deep-dive on every component</li>
+        <li><a href="https://arxiv.org/abs/2009.11189" target="_blank">Qlib Paper (arXiv)</a> — original research paper</li>
+        <li><a href="https://github.com/microsoft/qlib/tree/main/examples" target="_blank">Examples Directory</a> — runnable notebooks and scripts</li>
+        <li><a href="https://github.com/microsoft/qlib/tree/main/examples/tutorial" target="_blank">Tutorial Notebooks</a> — step-by-step Jupyter notebooks</li>
+        <li><a href="https://github.com/microsoft/RD-Agent" target="_blank">RD-Agent</a> — LLM-powered automated factor mining on top of Qlib</li>
+      </ul>
+    </section>
+  </main>
+
+  <script src="static/app.js"></script>
+</body>
+</html>
