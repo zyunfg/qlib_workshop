@@ -476,6 +476,29 @@ tr:last-child td { border-bottom: none; }
   border: 1px solid;
   color: var(--text);
 }
+.legend-pill.new {
+  background: rgba(79,142,247,0.15);
+  border-color: rgba(79,142,247,0.55);
+  color: var(--accent);
+}
+.legend-pill.existing {
+  background: rgba(255,255,255,0.04);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+/* ── Phase tag (Polymarket plan) ─────────────────────── */
+.phase-tag {
+  display: inline-block;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--accent3);
+  background: rgba(45,212,191,0.08);
+  border-left: 3px solid var(--accent3);
+  padding: 6px 12px;
+  margin: 6px 0 18px;
+  border-radius: 0 4px 4px 0;
+}
 
 /* ── Mapping table (primer) ──────────────────────────── */
 .mapping-table { overflow-x: auto; margin: 16px 0 24px; }

@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Qlib × Polymarket — Integration Plan</title>
+  <link rel="stylesheet" href="static/style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">Q<span>·</span>P</div>
+      <div class="logo-sub">Qlib × Polymarket</div>
+    </div>
+    <ul class="nav-links">
+      <li><a href="#thesis" class="nav-link active">The Thesis</a></li>
+      <li><a href="#mapping" class="nav-link">Domain Mapping</a></li>
+      <li><a href="#apis" class="nav-link">Polymarket APIs</a></li>
+      <li><a href="#architecture" class="nav-link">Architecture</a></li>
+      <li><a href="#phase1" class="nav-link">Phase 1 · Ingest</a></li>
+      <li><a href="#phase2" class="nav-link">Phase 2 · Provider</a></li>
+      <li><a href="#phase3" class="nav-link">Phase 3 · Features</a></li>
+      <li><a href="#phase4" class="nav-link">Phase 4 · Model</a></li>
+      <li><a href="#phase5" class="nav-link">Phase 5 · Backtest</a></li>
+      <li><a href="#phase6" class="nav-link">Phase 6 · Live</a></li>
+      <li><a href="#risks" class="nav-link">Risks &amp; Gotchas</a></li>
+      <li><a href="#timeline" class="nav-link">Timeline</a></li>
+    </ul>
+    <div class="sidebar-footer">
+      <a href="index.html">← Qlib Workshop</a><br/>
+      <a href="https://docs.polymarket.com" target="_blank">Polymarket Docs</a>
+    </div>
+  </nav>
+
+  <main class="content">
+
+    <!-- ── THESIS ─────────────────────────────────────────── -->
+    <section id="thesis" class="section">
+      <div class="hero">
+        <h1>Qlib × Polymarket</h1>
+        <p class="hero-sub">A staged plan for treating prediction-market outcome tokens as a first-class asset class inside Microsoft Qlib's ML quant pipeline.</p>
+        <div class="badge-row">
+          <span class="badge">Qlib</span>
+          <span class="badge">Polymarket CLOB</span>
+          <span class="badge">Custom Provider</span>
+          <span class="badge">LightGBM</span>
+          <span class="badge">Paper → Live</span>
+        </div>
+      </div>
+
+      <h2>Why bother?</h2>
+      <p>Polymarket exposes thousands of binary outcome tokens, each priced between 0 and 1 like an implied probability. The data shape (price history, volume, liquidity) <em>looks</em> like equities, but the semantics — bounded prices, hard resolution dates, complementary YES/NO pairs — break most of equity quant's assumptions. Qlib is the right framework to plug into because:</p>
+
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-icon">🔌</div>
+          <h3>Pluggable layers</h3>
+          <p>Qlib's <code>BaseProvider</code>, <code>DataHandler</code>, <code>Model</code>, and <code>Strategy</code> are all swappable. We don't fork anything — we subclass.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🧮</div>
+          <h3>Expression DSL</h3>
+          <p><code>$prob</code>, <code>Ref($prob, 1)</code>, <code>Mean($vol, 20)</code> — Qlib's symbolic features work on any column, not just OHLCV.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">📊</div>
+          <h3>Cross-sectional ranking</h3>
+          <p>Polymarket's natural alpha is <em>relative mispricing across markets in a category</em>. Qlib's universe / cross-sectional norm is exactly this shape.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🔁</div>
+          <h3>Rolling retrain</h3>
+          <p>Markets resolve constantly. Qlib's <code>OnlineManager</code> + <code>RollingStrategy</code> handles a universe that's churning every week.</p>
+        </div>
+      </div>
+
+      <div class="callout callout-info">
+        <strong>The thesis in one line:</strong> Polymarket's price action contains the same momentum/mean-reversion/liquidity signatures as equities, plus market-specific structural alpha (complementary pairs summing &gt; 1, time-decay before resolution). Qlib's ML pipeline can surface this systematically if we adapt the data layer.
+      </div>
+    </section>
+
+
+    <!-- ── DOMAIN MAPPING ─────────────────────────────────── -->
+    <section id="mapping" class="section">
+      <h2>Domain mapping: Equities → Prediction markets</h2>
+      <p>The integration is mostly a vocabulary translation. Get this table right and everything downstream follows.</p>
+
+      <table class="metrics-table">
+        <thead>
+          <tr><th>Qlib concept</th><th>Equity world</th><th>Polymarket equivalent</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Instrument</strong></td><td>Stock ticker (AAPL)</td><td>Outcome token ID (YES on "Will X happen by Y?")</td></tr>
+          <tr><td><strong>Universe</strong></td><td>S&amp;P 500, CSI300</td><td>Live markets in a category (e.g. <em>Politics-US-2028</em>)</td></tr>
+          <tr><td><strong>Calendar</strong></td><td>NYSE trading days</td><td>24/7 with hourly or daily bars</td></tr>
+          <tr><td><strong>OHLCV</strong></td><td>Open/High/Low/Close, Volume</td><td>Bucketed mid-price OHLC + traded volume + book depth</td></tr>
+          <tr><td><strong>Return</strong></td><td><code>(P_t − P_{t−1}) / P_{t−1}</code></td><td>Same, but bounded; consider <code>logit(P_t) − logit(P_{t−1})</code></td></tr>
+          <tr><td><strong>Label</strong></td><td>Forward N-day return, ranked</td><td>Forward N-hour prob change, or P(resolution=YES) − current_price</td></tr>
+          <tr><td><strong>Listing/Delisting</strong></td><td>IPO / delisting</td><td>Market creation / resolution (very frequent)</td></tr>
+          <tr><td><strong>Dividends</strong></td><td>Cash + adjustments</td><td>None — but resolution = full payout to one side</td></tr>
+          <tr><td><strong>Cross-section</strong></td><td>Rank across stocks</td><td>Rank within market category, or across complementary pairs</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout callout-tip">
+        <strong>Key insight:</strong> bounded prices make linear features misleading. Always work in <em>logit space</em> (<code>log(p/(1−p))</code>) when computing momentum, vol, and z-scores. Linear differences on prices near 0 or 1 over-react.
+      </div>
+    </section>
+
+
+    <!-- ── POLYMARKET APIS ────────────────────────────────── -->
+    <section id="apis" class="section">
+      <h2>Polymarket surface area</h2>
+      <p>Three endpoints carry 95% of what we need. None require auth for read-only ingest; writes need an API key + Polygon wallet.</p>
+
+      <div class="model-grid">
+        <div class="model-card">
+          <h4>Gamma API</h4>
+          <p class="model-tag">Market metadata</p>
+          <p><code>gamma-api.polymarket.com</code> — list active markets, categories, end-dates, token IDs, slugs. The "universe builder" endpoint.</p>
+        </div>
+        <div class="model-card">
+          <h4>CLOB API</h4>
+          <p class="model-tag">Order book + trades</p>
+          <p><code>clob.polymarket.com</code> — live order book, recent trades, place/cancel orders. Use the <a href="https://github.com/Polymarket/py-clob-client" target="_blank">py-clob-client</a> SDK.</p>
+        </div>
+        <div class="model-card">
+          <h4>Prices History</h4>
+          <p class="model-tag">Time series</p>
+          <p><code>clob.polymarket.com/prices-history</code> — historical midpoint price series per token at chosen intervals (1m/1h/6h/1d). This is our OHLCV substitute.</p>
+        </div>
+        <div class="model-card">
+          <h4>Subgraph (Polygon)</h4>
+          <p class="model-tag">Resolution events</p>
+          <p>Polygon subgraph queryable via GraphQL — gold for resolution truth labels and on-chain event reconstruction.</p>
+        </div>
+      </div>
+
+      <h3>Sample fetch</h3>
+      <pre><code class="language-python">import requests
+
+# 1. List active politics markets
+r = requests.get(
+    "https://gamma-api.polymarket.com/markets",
+    params={"category": "Politics", "active": "true", "limit": 100},
+).json()
+
+# Each market has clobTokenIds = ['YES_id', 'NO_id']
+for mkt in r[:3]:
+    print(mkt["slug"], "→", mkt["clobTokenIds"])
+
+# 2. Pull a price history for one token (hourly, last 30d)
+hist = requests.get(
+    "https://clob.polymarket.com/prices-history",
+    params={"market": "0xabc...token_id", "interval": "1h", "fidelity": 60},
+).json()
+# hist["history"] = [{"t": unix_ts, "p": 0.42}, ...]</code></pre>
+    </section>
+
+
+    <!-- ── ARCHITECTURE ───────────────────────────────────── -->
+    <section id="architecture" class="section">
+      <h2>System architecture</h2>
+      <p>The integration sits between Polymarket's APIs and Qlib's standard ML stack. Anything in <span class="legend-pill new">blue</span> is new code we write; <span class="legend-pill existing">grey</span> is unchanged Qlib.</p>
+
+      <div class="mermaid-wrap">
+<pre class="mermaid">
+graph TB
+  subgraph SRC["External · Polymarket"]
+    GAMMA[Gamma API<br/>markets metadata]
+    CLOB[CLOB API<br/>orderbook + trades]
+    HIST[Prices-History<br/>price series]
+    GRAPH[Polygon Subgraph<br/>resolutions]
+  end
+
+  subgraph ING["New · Ingest Layer"]
+    UNI[universe_builder.py<br/>build daily instrument list]
+    LOAD[loader.py<br/>fetch + normalize bars]
+    RES[resolver.py<br/>resolution events]
+  end
+
+  subgraph STORE["New · Qlib-compatible Store"]
+    BIN[(bin/ files<br/>$prob, $vol, $bid_ask)]
+    CAL[calendars/<br/>1h, 1d]
+    INST[instruments/<br/>category lists]
+  end
+
+  subgraph QLIB["Qlib · Standard Stack"]
+    PROV[PolymarketProvider<br/>BaseProvider subclass]
+    HAND[PolymarketHandler<br/>DataHandlerLP subclass]
+    DS[DatasetH]
+    MOD[LGBModel / LSTM]
+    SIG[Signal]
+  end
+
+  subgraph EXEC["New · Execution"]
+    STRAT[PolymarketStrategy<br/>topk + size by edge]
+    BT[Backtester<br/>resolution-aware]
+    LIVE[CLOB executor<br/>py-clob-client]
+  end
+
+  GAMMA --> UNI
+  HIST --> LOAD
+  CLOB --> LOAD
+  GRAPH --> RES
+  UNI --> INST
+  LOAD --> BIN
+  LOAD --> CAL
+  RES --> BIN
+  BIN --> PROV
+  CAL --> PROV
+  INST --> PROV
+  PROV --> HAND --> DS --> MOD --> SIG
+  SIG --> STRAT
+  STRAT --> BT
+  STRAT -.live mode.-> LIVE
+  LIVE --> CLOB
+
+  classDef new fill:#1e2b4d,stroke:#4f8ef7,color:#e2e8f0;
+  classDef existing fill:#1a1f2e,stroke:#4a5168,color:#8892a4;
+  class UNI,LOAD,RES,BIN,CAL,INST,STRAT,BT,LIVE,PROV,HAND new;
+  class DS,MOD,SIG existing;
+</pre>
+      </div>
+
+      <div class="legend">
+        <span class="legend-pill new">New code</span>
+        <span class="legend-pill existing">Stock Qlib (unchanged)</span>
+      </div>
+    </section>
+
+
+    <!-- ── PHASE 1 — INGEST ───────────────────────────────── -->
+    <section id="phase1" class="section">
+      <h2>Phase 1 · Data ingestion</h2>
+      <p class="phase-tag">Goal: write Polymarket history into Qlib's binary format so existing tools just work.</p>
+
+      <ol class="numbered-list">
+        <li><strong>Universe builder.</strong> Poll Gamma daily, persist <code>instruments/politics.txt</code> with rows <code>&lt;token_id&gt; &lt;start_date&gt; &lt;end_date&gt;</code> — same schema as <code>~/.qlib/qlib_data/us_data/instruments/csi300.txt</code>.</li>
+        <li><strong>Loader.</strong> For each instrument, fetch <code>prices-history</code> at the chosen interval. Bucket trades into OHLCV-shaped bars (Open/High/Low/Close come from intra-bucket ticks; "volume" = sum of traded notional).</li>
+        <li><strong>Augmenters.</strong> Add Polymarket-specific columns: <code>$bid</code>, <code>$ask</code>, <code>$mid</code>, <code>$depth_bid</code>, <code>$depth_ask</code>, <code>$tte_days</code> (time-to-expiry), <code>$pair_sum</code> (YES+NO sum).</li>
+        <li><strong>Writer.</strong> Use <code>qlib.tests.data.GetData</code> as a reference and call <code>qlib.utils.dump_bin</code> per column. Output structure matches qlib's expectations:
+          <pre><code class="language-bash">~/.qlib/qlib_data/polymarket/
+  ├── calendars/{1d.txt, 1h.txt}
+  ├── instruments/{all.txt, politics.txt, crypto.txt}
+  └── features/&lt;token_id&gt;/{close, volume, mid, bid, ask, ...}.day.bin</code></pre>
+        </li>
+      </ol>
+
+      <pre><code class="language-python"># ingest/loader.py — skeleton
+import pandas as pd, requests
+from datetime import datetime, timedelta
+
+def fetch_bars(token_id: str, interval="1h", days=180) -> pd.DataFrame:
+    r = requests.get(
+        "https://clob.polymarket.com/prices-history",
+        params={"market": token_id, "interval": interval, "fidelity": 60},
+        timeout=30,
+    ).json()
+    df = pd.DataFrame(r["history"])
+    df["datetime"] = pd.to_datetime(df["t"], unit="s")
+    df = df.set_index("datetime")["p"].rename("mid").to_frame()
+    # OHLC from ticks; if API gives only mid-points, OHLC ≈ mid
+    df["open"] = df["high"] = df["low"] = df["close"] = df["mid"]
+    df["volume"] = 0  # backfill from CLOB trades endpoint
+    return df</code></pre>
+
+      <div class="callout callout-info">
+        <strong>Storage note:</strong> Qlib's bin format is per-column, float32, with one row per calendar entry. Pre-resolution dates write the bar; post-resolution dates write NaN. The DataHandler will mask these out.
+      </div>
+    </section>
+
+
+    <!-- ── PHASE 2 — PROVIDER ─────────────────────────────── -->
+    <section id="phase2" class="section">
+      <h2>Phase 2 · Custom Provider + Handler</h2>
+      <p class="phase-tag">Goal: teach Qlib to read our bin store and expose Polymarket-shaped expressions.</p>
+
+      <p>Two narrow extensions to Qlib:</p>
+
+      <div class="tabs" data-tab-group="phase2">
+        <button class="tab-btn active" data-tab="provider">PolymarketProvider</button>
+        <button class="tab-btn" data-tab="handler">PolymarketHandler</button>
+        <button class="tab-btn" data-tab="config">qlib.init() config</button>
+      </div>
+
+      <div class="tab-content active" data-tab-content="provider">
+        <pre><code class="language-python"># qlibx/polymarket/provider.py
+from qlib.data.data import LocalProvider
+
+class PolymarketProvider(LocalProvider):
+    """Same on-disk layout as LocalProvider, but knows about
+    instrument churn (markets that resolve are 'delisted')."""
+
+    def list_instruments(self, instruments, start_time=None,
+                         end_time=None, as_list=False):
+        # Filter to markets that are LIVE during the window.
+        # A resolved market on 2026-04-01 should not appear
+        # in any feature row dated 2026-04-15.
+        df = super().list_instruments(instruments, start_time, end_time, True)
+        return [(tok, s, e) for tok, s, e in df if s <= end_time and e >= start_time]</code></pre>
+      </div>
+
+      <div class="tab-content" data-tab-content="handler">
+        <pre><code class="language-python"># qlibx/polymarket/handler.py
+from qlib.contrib.data.handler import DataHandlerLP
+from qlib.data.dataset.processor import RobustZScoreNorm, Fillna, CSRankNorm
+
+class PolymarketHandler(DataHandlerLP):
+    def get_feature_config(self):
+        # All expressions evaluated in logit-space where price is involved
+        fields = []
+        names = []
+        # Momentum on logit-prob
+        for k in [1, 6, 24, 72, 168]:   # in hours
+            fields.append(f"Log($close/(1-$close)) - Ref(Log($close/(1-$close)), {k})")
+            names.append(f"LOGIT_MOM_{k}")
+        # Realized vol of logit-returns
+        for k in [24, 72]:
+            fields.append(f"Std(Log($close/(1-$close)) - Ref(Log($close/(1-$close)),1), {k})")
+            names.append(f"LOGIT_VOL_{k}")
+        # Liquidity / book pressure
+        fields += ["$volume/Mean($volume, 168)", "($ask-$bid)/$mid", "$depth_bid/($depth_bid+$depth_ask)"]
+        names  += ["VOL_SURGE", "REL_SPREAD", "BOOK_IMBAL"]
+        # Time-to-expiry decay
+        fields.append("$tte_days")
+        names.append("TTE")
+        # Pair coherence (sum of YES+NO; arbitrage if >1)
+        fields.append("$pair_sum - 1")
+        names.append("PAIR_GAP")
+        return fields, names
+
+    def get_label_config(self):
+        # Forward 1-day logit-return — direction + magnitude
+        return ["Ref(Log($close/(1-$close)), -24) - Log($close/(1-$close))"], ["LABEL0"]</code></pre>
+      </div>
+
+      <div class="tab-content" data-tab-content="config">
+        <pre><code class="language-python">import qlib
+qlib.init(
+    provider_uri="~/.qlib/qlib_data/polymarket",
+    region="custom",
+    expression_provider={"class": "PolymarketProvider", "module_path": "qlibx.polymarket.provider"},
+    freq="1h",
+)</code></pre>
+      </div>
+    </section>
+
+
+    <!-- ── PHASE 3 — FEATURES ─────────────────────────────── -->
+    <section id="phase3" class="section">
+      <h2>Phase 3 · Feature engineering</h2>
+      <p class="phase-tag">Goal: factors that exploit prediction-market structure, not just equity-style momentum.</p>
+
+      <div class="factor-grid">
+        <div class="factor-card">
+          <h4>Logit momentum</h4>
+          <p>Δ logit(p) over 1h, 6h, 1d, 1w. Bounded-price-safe replacement for log return.</p>
+        </div>
+        <div class="factor-card">
+          <h4>Realized vol (logit space)</h4>
+          <p>Rolling std of 1-step logit returns. High vol = uncertain narrative.</p>
+        </div>
+        <div class="factor-card">
+          <h4>Pair-sum arbitrage</h4>
+          <p><code>price(YES) + price(NO) − 1</code>. Persistent positive = liquidity-providing edge.</p>
+        </div>
+        <div class="factor-card">
+          <h4>Time-to-expiry decay</h4>
+          <p>Probability variance compresses as TTE → 0. Strong interaction feature with vol.</p>
+        </div>
+        <div class="factor-card">
+          <h4>Book imbalance</h4>
+          <p><code>bid_depth / (bid_depth + ask_depth)</code> at top-of-book. Short-horizon directional.</p>
+        </div>
+        <div class="factor-card">
+          <h4>Spread compression</h4>
+          <p>Falling <code>(ask − bid)/mid</code> predicts increased trading attention.</p>
+        </div>
+        <div class="factor-card">
+          <h4>Cross-market drift</h4>
+          <p>Beta of this market to its category index (politics, crypto, sports).</p>
+        </div>
+        <div class="factor-card">
+          <h4>News surprise proxy</h4>
+          <p>Joint spike in volume + spread blowout + logit jump. Captures event windows.</p>
+        </div>
+      </div>
+
+      <div class="callout callout-tip">
+        <strong>Cross-sectional norm by category, not globally.</strong> A 1-σ move in a high-vol crypto market is not comparable to a 1-σ move in a sports market. Use <code>CSRankNorm</code> with <code>group_by="category"</code>.
+      </div>
+    </section>
+
+
+    <!-- ── PHASE 4 — MODEL ────────────────────────────────── -->
+    <section id="phase4" class="section">
+      <h2>Phase 4 · Model</h2>
+      <p class="phase-tag">Goal: predict 1-day forward logit-return; convert to expected dollar edge per token.</p>
+
+      <table class="metrics-table">
+        <thead><tr><th>Choice</th><th>Recommendation</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td>Algorithm</td><td><strong>LightGBM</strong> (Qlib's <code>LGBModel</code>)</td><td>Tabular features, mixed scales, sparse universe — gradient boosting wins this regime.</td></tr>
+          <tr><td>Target</td><td>Forward 1-day Δ logit(p)</td><td>Continuous regression target with reasonable Gaussian-ish residuals.</td></tr>
+          <tr><td>Loss</td><td>Quantile or Huber</td><td>Fat tails near resolution dates — robust loss helps.</td></tr>
+          <tr><td>Validation</td><td>Time-series CV with embargo</td><td>Markets often resolve on weekends; embargo 2 days to avoid label leak.</td></tr>
+          <tr><td>Metric</td><td>Rank IC, plus <strong>directional edge $</strong></td><td>IC measures ordering; the dollar metric translates IC to "how much would this have made."</td></tr>
+        </tbody>
+      </table>
+
+      <pre><code class="language-yaml"># workflow_config_polymarket.yaml
+qlib_init:
+    provider_uri: ~/.qlib/qlib_data/polymarket
+    region: custom
+
+market: &market politics
+benchmark: &benchmark POLITICS_INDEX
+
+data_handler_config: &handler_cfg
+    start_time: 2024-01-01
+    end_time: 2026-05-19
+    fit_start_time: 2024-01-01
+    fit_end_time: 2025-12-31
+    instruments: *market
+    infer_processors:
+      - class: RobustZScoreNorm
+        kwargs: {fields_group: feature, clip_outlier: true}
+      - class: Fillna
+        kwargs: {fields_group: feature}
+    learn_processors:
+      - class: DropnaLabel
+      - class: CSRankNorm
+        kwargs: {fields_group: label}
+
+task:
+    model:
+        class: LGBModel
+        module_path: qlib.contrib.model.gbdt
+        kwargs:
+            objective: huber
+            learning_rate: 0.05
+            num_leaves: 64
+            feature_fraction: 0.85
+            min_data_in_leaf: 50
+    dataset:
+        class: DatasetH
+        module_path: qlib.data.dataset
+        kwargs:
+            handler:
+                class: PolymarketHandler
+                module_path: qlibx.polymarket.handler
+                kwargs: *handler_cfg
+            segments:
+                train: [2024-01-01, 2025-09-30]
+                valid: [2025-10-01, 2025-12-31]
+                test:  [2026-01-01, 2026-05-19]</code></pre>
+    </section>
+
+
+    <!-- ── PHASE 5 — BACKTEST ─────────────────────────────── -->
+    <section id="phase5" class="section">
+      <h2>Phase 5 · Backtest</h2>
+      <p class="phase-tag">Goal: walk-forward simulation that correctly accounts for resolution payoffs and CLOB frictions.</p>
+
+      <p>Qlib's <code>TopkDropoutStrategy</code> doesn't quite fit — it assumes continuous holdings. We need a thin wrapper:</p>
+
+      <div class="flow-diagram">
+        <div class="flow-step">
+          <div class="flow-num">1</div>
+          <div class="flow-body">
+            <h4>Score → edge</h4>
+            <p>Convert predicted Δ logit to expected price change. Filter to abs(edge) &gt; 2× round-trip cost.</p>
+          </div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-num">2</div>
+          <div class="flow-body">
+            <h4>Size by Kelly fraction</h4>
+            <p>Cap at 5% of bankroll per market; cap aggregate at 25% per category to avoid correlated blow-ups.</p>
+          </div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-num">3</div>
+          <div class="flow-body">
+            <h4>Resolution settle</h4>
+            <p>On expiry date, all positions resolve to 0 or 1 instantly. PnL = (resolution − entry) × size.</p>
+          </div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-num">4</div>
+          <div class="flow-body">
+            <h4>Cost model</h4>
+            <p>Use simulated taker fills against book snapshot + gas (~$0.01 on Polygon). Slippage = walk-the-book.</p>
+          </div>
+        </div>
+      </div>
+
+      <pre><code class="language-python"># qlibx/polymarket/strategy.py
+from qlib.strategy.base import BaseStrategy
+
+class PolymarketEdgeStrategy(BaseStrategy):
+    def __init__(self, signal, min_edge=0.015, kelly_cap=0.05, **kw):
+        super().__init__(**kw)
+        self.signal = signal
+        self.min_edge = min_edge      # 1.5% expected price change
+        self.kelly_cap = kelly_cap
+
+    def generate_trade_decision(self, execute_result=None):
+        scores = self.signal.get_signal(start=self.trade_calendar.now(), end=...)
+        # scores are predicted Δ logit; convert to Δ price
+        for token, dlogit in scores.items():
+            p = self._book_mid(token)
+            d_price = p*(1-p) * dlogit           # delta-method
+            if abs(d_price) < self.min_edge: continue
+            side = "BUY_YES" if d_price > 0 else "BUY_NO"
+            size = min(self.kelly_cap, abs(d_price)/0.10) * self.bankroll
+            yield self._order(token, side, size)</code></pre>
+    </section>
+
+
+    <!-- ── PHASE 6 — LIVE ─────────────────────────────────── -->
+    <section id="phase6" class="section">
+      <h2>Phase 6 · Live execution</h2>
+      <p class="phase-tag">Goal: same code path as backtest, with a CLOB executor in place of the simulator.</p>
+
+      <ol class="numbered-list">
+        <li><strong>Auth setup.</strong> EOA on Polygon, USDC.e for collateral, API key + secret + passphrase via Polymarket's signing flow (L1 → L2 derived key). Stash in env vars, never in repo.</li>
+        <li><strong>Executor.</strong> Subclass Qlib's <code>BaseExecutor</code>. <code>execute()</code> takes the strategy's order list and calls <code>py-clob-client</code>'s <code>create_and_post_order</code> with GTC limit at top-of-book or post-only one tick inside.</li>
+        <li><strong>Order monitoring.</strong> Background task polls open orders; cancel after <code>max_age_seconds</code> if unfilled. Update Qlib's position tracker on fills.</li>
+        <li><strong>Kill switches.</strong> Hard limits on (a) max daily drawdown, (b) max position per market, (c) total bankroll deployed. Trip → cancel-all + halt.</li>
+        <li><strong>Reconciler.</strong> Hourly: read on-chain balances via Polygon RPC, reconcile against Qlib's internal book. Mismatch → halt + alert.</li>
+      </ol>
+
+      <pre><code class="language-python">from py_clob_client.client import ClobClient
+from py_clob_client.clob_types import OrderArgs, OrderType
+
+class PolymarketExecutor:
+    def __init__(self, host="https://clob.polymarket.com", **creds):
+        self.cli = ClobClient(host, **creds)
+        self.cli.set_api_creds(self.cli.create_or_derive_api_creds())
+
+    def execute(self, decision):
+        for o in decision.orders:
+            args = OrderArgs(
+                token_id=o.token,
+                price=o.limit_price,
+                size=o.size_shares,
+                side="BUY" if o.is_long else "SELL",
+            )
+            signed = self.cli.create_order(args)
+            resp = self.cli.post_order(signed, OrderType.GTC)
+            yield resp</code></pre>
+
+      <div class="callout callout-info">
+        <strong>Geography:</strong> Polymarket's TOS restricts US persons from trading. Run live only from a jurisdiction where the platform is available, and confirm independently — this plan does not constitute legal or regulatory advice.
+      </div>
+    </section>
+
+
+    <!-- ── RISKS ──────────────────────────────────────────── -->
+    <section id="risks" class="section">
+      <h2>Risks &amp; gotchas</h2>
+
+      <div class="comparison-row">
+        <div class="comparison-side">
+          <h4>⚠️ Will bite you</h4>
+          <ul>
+            <li><strong>Resolution oracle disputes.</strong> UMA-resolved markets can take days to finalize and occasionally get re-litigated. Mark these as illiquid until settled.</li>
+            <li><strong>Survivorship in training data.</strong> If you only train on resolved markets, you over-fit to "tradable until the end" — include cancelled/illiquid markets with appropriate masking.</li>
+            <li><strong>Label leakage at resolution.</strong> A market that resolves YES at 4pm UTC will have price → 1 minutes before. Always embargo the last N hours of data per market.</li>
+            <li><strong>Pair-arb illusion.</strong> YES + NO sums &gt; 1 often reflect liquidity cost, not free money. Net of fees the edge frequently vanishes.</li>
+            <li><strong>Adverse selection.</strong> Resting limit orders fill when news arrives. Aggressive sizing on limits = systematically wrong side of every event.</li>
+          </ul>
+        </div>
+        <div class="comparison-side">
+          <h4>🛡️ Mitigations</h4>
+          <ul>
+            <li><strong>Filter universe</strong> to markets with daily volume &gt; $5k and TTE &gt; 24h. Eliminates ~70% of long tail, keeps the signal-rich head.</li>
+            <li><strong>Logit-space everything.</strong> Stops the framework from over-weighting extreme-price markets where 0.99 → 0.999 looks like a 1% move but is 2.3 in logit.</li>
+            <li><strong>Walk-forward backtest, no peeking.</strong> Refit weekly, never lookahead. Embargo resolution windows.</li>
+            <li><strong>Paper-trade for 4 weeks min.</strong> Live spreads + fill rates ≠ backtest assumptions; this is the #1 failure mode.</li>
+            <li><strong>Start tiny.</strong> 1% bankroll allocation for the first month. Scale only after live IC ≥ backtest IC.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ── TIMELINE ───────────────────────────────────────── -->
+    <section id="timeline" class="section">
+      <h2>Suggested timeline</h2>
+
+      <table class="metrics-table">
+        <thead><tr><th>Week</th><th>Milestone</th><th>Done = ?</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Ingest layer for one category (Politics)</td><td><code>qlib.init()</code> + <code>D.features([...])</code> returns a non-empty DataFrame</td></tr>
+          <tr><td>2</td><td>Custom Handler with 10+ features</td><td>Feature DataFrame has no NaN leakage; sanity-plot momentum vs returns</td></tr>
+          <tr><td>3</td><td>LGBModel trained, in-sample IC measured</td><td>Rank IC &gt; 0.03 on validation</td></tr>
+          <tr><td>4</td><td>Backtester w/ resolution settlement</td><td>End-to-end run produces equity curve + per-trade ledger</td></tr>
+          <tr><td>5–6</td><td>Walk-forward stress test, parameter sweep</td><td>Stable Sharpe across 3+ retrain windows</td></tr>
+          <tr><td>7</td><td>Live executor on testnet / 1% allocation</td><td>10 markets, 50+ fills, IC tracking matches backtest within 30%</td></tr>
+          <tr><td>8+</td><td>Scale or kill</td><td>Decide based on out-of-sample evidence</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout callout-tip">
+        <strong>Kill criteria, set in advance:</strong> if live Sharpe over the first 200 trades is &lt; 0.5× backtest, or max drawdown exceeds 15%, halt and re-evaluate. Pre-committing to a kill rule is the only honest defense against confirmation bias.
+      </div>
+
+      <h3>Repo layout you'll end up with</h3>
+      <pre><code class="language-bash">qlibx/
+  ├── polymarket/
+  │   ├── __init__.py
+  │   ├── ingest/
+  │   │   ├── universe.py
+  │   │   ├── loader.py
+  │   │   └── writer.py
+  │   ├── provider.py
+  │   ├── handler.py
+  │   ├── strategy.py
+  │   ├── executor.py
+  │   └── config/workflow_polymarket.yaml
+  └── tests/
+      ├── test_loader.py
+      └── test_handler_features.py</code></pre>
+    </section>
+
+  </main>
+
+  <script src="static/app.js"></script>
+</body>
+</html>
