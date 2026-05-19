@@ -99,11 +99,13 @@ function initScrollSpy() {
 
   sections.forEach(s => observer.observe(s));
 
-  // Smooth scroll on nav click
+  // Smooth scroll on nav click — only for in-page anchors
   navLinks.forEach(link => {
     link.addEventListener("click", e => {
+      const href = link.getAttribute("href");
+      if (!href || !href.startsWith("#")) return;   // let real links navigate
       e.preventDefault();
-      const target = document.querySelector(link.getAttribute("href"));
+      const target = document.querySelector(href);
       if (target) target.scrollIntoView({ behavior: "smooth" });
     });
   });
